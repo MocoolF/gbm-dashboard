@@ -1,0 +1,27 @@
+{
+  "channels": [
+    { "id": "avito",    "name": "Авито",             "color": "#328DFF" },
+    { "id": "direct",   "name": "Яндекс Директ",     "color": "#eb6834" },
+    { "id": "partners", "name": "Партнёры",          "color": "#1baf7a" },
+    { "id": "tg",       "name": "Telegram",          "color": "#eda100" },
+    { "id": "cold",     "name": "Холодные рассылки", "color": "#e87ba4" },
+    { "id": "seo",      "name": "SEO / сайт",        "color": "#4a3aa7" }
+  ],
+  "services": [
+    { "id": "maps",     "name": "Яндекс Карты" },
+    { "id": "context",  "name": "Контекстная реклама" },
+    { "id": "target",   "name": "Таргет" },
+    { "id": "avito_s",  "name": "Авито" },
+    { "id": "seo_s",    "name": "SEO" },
+    { "id": "site",     "name": "Разработка сайта" },
+    { "id": "complex",  "name": "Комплекс" }
+  ],
+  "stages": [
+    { "id": "lead",     "name": "Заявки" },
+    { "id": "qual",     "name": "Квал. заявки" },
+    { "id": "zoom_set", "name": "Зум назначен" },
+    { "id": "zoom",     "name": "Зум проведён" },
+    { "id": "offer",    "name": "КП отправлено" },
+    { "id": "won",      "name": "Продажи" }
+  ]
+}
