@@ -149,7 +149,6 @@ function renderGoals() {
     const diff = Math.round(f - planNow);
     const perDay = left > 0 ? Math.max(0, (goal - f) / left) : 0;
     const state = fc >= goal ? 'ok' : fc >= goal * 0.85 ? 'warn' : 'bad';
-    const label = { ok:'в графике', warn:'есть риск', bad:'отстаём' }[state];
     const need  = Math.max(0, goal - f);
     const pace  = left <= 0 ? '—' : perDay < 1 ? `ещё <b>${need}</b> за ${left} ${plural(left,['день','дня','дней'])}`
                                                : `<b>${perDay.toFixed(1)}</b>/день`;
@@ -158,8 +157,7 @@ function renderGoals() {
     box.append(el('div','goal',`
       <div class="goal__top">
         <span class="goal__name">${title}</span>
-        <span class="goal__period">${MON[+mKey.slice(5,7)-1]} ${mKey.slice(0,4)} · день ${passed} из ${total}</span>
-        <span class="goal__pill ${state}">${label}</span>
+        <span class="goal__period">${MON[+mKey.slice(5,7)-1]} ${mKey.slice(0,4)}</span>
       </div>
       <div class="goal__nums">
         <span class="goal__fact">${f}</span>
@@ -171,9 +169,6 @@ function renderGoals() {
         <div class="bar__pace" style="left:${Math.min(100, passed/total*100)}%" title="темп плана"></div>
       </div>
       <div class="goal__legend">
-        <span>план на сегодня <b>${Math.round(planNow)}</b></span>
-        <span>прогноз месяца <b>${fc}</b></span>
-        <span>${diff === 0 ? 'ровно по плану' : (diff < 0 ? 'отставание ' : 'опережение ') + `<b>${Math.abs(diff)}</b>`}</span>
         <span>нужно ${pace}</span>
       </div>`));
   });
@@ -182,14 +177,13 @@ function renderGoals() {
 /* ---------- kpi ---------- */
 function renderKpis(c, p, pFrom, pTo) {
   const items = [
-    { n:'Бюджет',        v: moneyShort(c.spend),  raw:c.spend,  prev:p.spend,  kind:'spend',  inv:true,  sub:`CPL ${c.cpl ? money(c.cpl) : '—'}` },
-    { n:'Заявки',        v: nf(c.nLeads),         raw:c.nLeads, prev:p.nLeads, kind:'leads',  sub:'первичные' },
-    { n:'Квал. заявки',  v: nf(c.quals),          raw:c.quals,  prev:p.quals,  kind:'quals',  sub:`${pct(c.quals, c.nLeads)}% от заявок` },
-    { n:'Цена квала',    v: c.cpql ? money(c.cpql) : '—', raw:c.cpql, prev:p.cpql, kind:null, inv:true, sub:'бюджет / квал' },
-    { n:'Зумы',          v: nf(c.zooms),          raw:c.zooms,  prev:p.zooms,  kind:'zooms',  sub:'проведено' },
-    { n:'Продажи',       v: nf(c.nSales),         raw:c.nSales, prev:p.nSales, kind:'sales',  sub:`${pct(c.nSales, c.nLeads)}% от заявок` },
-    { n:'Выручка',       v: moneyShort(c.revenue),raw:c.revenue,prev:p.revenue,kind:null,
-        sub: c.nSales ? `чек ${moneyShort(c.revenue / c.nSales)}` : 'нет оплат' }
+    { n:'Бюджет',        v: moneyShort(c.spend),  raw:c.spend,  prev:p.spend,  kind:'spend',  inv:true },
+    { n:'Заявки',        v: nf(c.nLeads),         raw:c.nLeads, prev:p.nLeads, kind:'leads' },
+    { n:'Квал. заявки',  v: nf(c.quals),          raw:c.quals,  prev:p.quals,  kind:'quals' },
+    { n:'Цена квала',    v: c.cpql ? money(c.cpql) : '—', raw:c.cpql, prev:p.cpql, kind:null, inv:true },
+    { n:'Зумы',          v: nf(c.zooms),          raw:c.zooms,  prev:p.zooms,  kind:'zooms' },
+    { n:'Продажи',       v: nf(c.nSales),         raw:c.nSales, prev:p.nSales, kind:'sales' },
+    { n:'Выручка',       v: moneyShort(c.revenue),raw:c.revenue,prev:p.revenue,kind:null }
   ];
   const box = $('#kpis'); box.innerHTML = '';
   items.forEach(it => {
@@ -202,7 +196,6 @@ function renderKpis(c, p, pFrom, pTo) {
       <div class="kpi__val">${it.v}</div>
       <div class="kpi__sub">
         <span class="delta ${cls}">${arrow}${Math.abs(Math.round(d))}%</span>
-        <span>· ${it.sub}</span>
       </div>`);
     const sp = el('div','kpi__spark');
     if (it.kind) sp.append(sparkline(series(S.from, S.to, it.kind), it.inv));
@@ -220,7 +213,7 @@ function renderFunnel(f) {
   const box = $('#funnel'); box.innerHTML = '';
   const wrap = el('div','fn');
   S.stages.forEach((s, i) => {
-    const v = vals[i], prev = i ? vals[i-1] : null;
+    const v = vals[i];
     const w = Math.max(v / max * 100, v > 0 ? 2 : 0);
     const inside = w > 14;
     const row = el('div','fn__row',`
@@ -230,8 +223,6 @@ function renderFunnel(f) {
           ${inside ? `<span class="fn__v">${nf(v)}</span>` : ''}
         </div>
         ${inside ? '' : `<span class="fn__v fn__v--out">${nf(v)}</span>`}
-        <span class="fn__cv">${prev !== null ? `<b>${pct(v, prev)}%</b> от пред.` : ''}${
-          i > 1 ? ` · <b>${pct(v, vals[0])}%</b> от заявок` : ''}</span>
       </div>`);
     wrap.append(row);
   });
@@ -242,17 +233,15 @@ function renderFunnel(f) {
 /* ---------- rings ---------- */
 function renderRings(f) {
   const steps = [
-    ['Квалификация','заявка → квал',       f.qual,     f.lead],
-    ['Назначен зум','квал → назначен',     f.zoom_set, f.qual],
-    ['Дошёл до зума','назначен → проведён',f.zoom,     f.zoom_set],
-    ['Отправлено КП','зум → КП',           f.offer,    f.zoom],
-    ['Закрытие','КП → продажа',            f.won,      f.offer],
-    ['Итог','заявка → продажа',            f.won,      f.lead]
+    ['Квалификация','заявка → квал',   f.qual, f.lead],
+    ['Дошёл до зума','квал → зум',     f.zoom, f.qual],
+    ['Закрытие','зум → продажа',       f.won,  f.zoom],
+    ['Итог','заявка → продажа',        f.won,  f.lead]
   ];
   const box = $('#rings'); box.innerHTML = '';
   steps.forEach(([n, s, a, b], i) => {
     const p = pct(a, b);
-    box.append(el('div','ring', `${ringSvg(p, i === 5)}
+    box.append(el('div','ring', `${ringSvg(p, i === 3)}
       <div><div class="ring__n">${n}</div><div class="ring__s">${s} · ${nf(a)}/${nf(b)}</div></div>`));
   });
 }

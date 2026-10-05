@@ -118,7 +118,7 @@ html[data-theme="dark"] .pop{box-shadow:0 8px 32px rgba(0,0,0,.5)}
 .card__head{margin-bottom:14px}
 .card__title{font-size:14px;font-weight:600;letter-spacing:-.1px}
 .card__hint{font-size:11.5px;color:var(--ink-3);margin-top:2px}
-.grid2{display:grid;grid-template-columns:1.15fr 1fr;gap:12px}
+.grid2{display:grid;grid-template-columns:1.15fr 1fr;gap:12px;align-items:start}
 
 /* ---------- goals ---------- */
 .goals{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -152,19 +152,19 @@ html[data-theme="dark"] .pop{box-shadow:0 8px 32px rgba(0,0,0,.5)}
 .kpi__spark{margin-top:8px;height:28px}
 
 /* ---------- funnel ---------- */
-.fn{display:flex;flex-direction:column;gap:9px}
-.fn__row{display:grid;grid-template-columns:118px 1fr;gap:12px;align-items:center}
+.fn{display:flex;flex-direction:column;gap:14px}
+.fn__row{display:grid;grid-template-columns:132px 1fr;gap:12px;align-items:center}
 .fn__lbl{font-size:12.5px;color:var(--ink-2);text-align:right}
-.fn__barwrap{position:relative;height:30px;display:flex;align-items:center}
-.fn__bar{height:28px;border-radius:0 6px 6px 0;min-width:3px;display:flex;align-items:center;justify-content:flex-end;
+.fn__barwrap{position:relative;height:38px;display:flex;align-items:center}
+.fn__bar{height:36px;border-radius:0 6px 6px 0;min-width:3px;display:flex;align-items:center;justify-content:flex-end;
   padding-right:9px;transition:width .45s cubic-bezier(.4,0,.2,1)}
-.fn__v{font-size:12.5px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
-.fn__v--out{color:var(--ink);margin-left:8px}
+.fn__v{font-size:14px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
+.fn__v--out{color:var(--ink);margin-left:10px;font-weight:700}
 .fn__cv{font-size:11.5px;color:var(--ink-3);margin-left:10px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .fn__cv b{color:var(--ink-2);font-weight:600}
 
 /* ---------- rings ---------- */
-.rings{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 6px}
+.rings{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 6px}
 .ring{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
 .ring__n{font-size:11px;color:var(--ink-2);font-weight:500;line-height:1.25}
 .ring__s{font-size:10px;color:var(--ink-3)}
@@ -217,7 +217,7 @@ html[data-theme="dark"] .tip{background:#0d1216;border:1px solid var(--line)}
   .kpi__val{font-size:19px}
   .goal__fact{font-size:26px}
   .rings{grid-template-columns:repeat(2,1fr)}
-  .fn__row{grid-template-columns:86px 1fr;gap:8px}
+  .fn__row{grid-template-columns:100px 1fr;gap:8px}
   .goal__legend{gap:6px 12px}
   .goal__period{width:100%;order:3}
   .kpi__name{white-space:normal}
