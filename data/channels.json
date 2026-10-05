@@ -1,32 +1,44 @@
 {
   "channels": [
-    { "id": "vk",    "name": "ВК реклама",         "color": "#328DFF" },
-    { "id": "calls", "name": "Дозвоны",            "color": "#eb6834" },
-    { "id": "cold",  "name": "Холодные рассылки",  "color": "#1baf7a" },
-    { "id": "tg",    "name": "Чаты в телеграм",    "color": "#eda100" }
+    {
+      "id": "vk",
+      "name": "ВК реклама",
+      "color": "#328DFF"
+    },
+    {
+      "id": "calls",
+      "name": "Дозвоны",
+      "color": "#eb6834"
+    },
+    {
+      "id": "cold",
+      "name": "Холодные рассылки",
+      "color": "#1baf7a"
+    },
+    {
+      "id": "tg",
+      "name": "Чаты в телеграм",
+      "color": "#eda100"
+    }
   ],
-  "niches": [
-    { "id": "kitchen", "name": "Кухни на заказ" },
-    { "id": "ceiling", "name": "Натяжные потолки" },
-    { "id": "windows", "name": "Пластиковые окна" },
-    { "id": "auto",    "name": "Автосервис" },
-    { "id": "dental",  "name": "Стоматология" }
-  ],
-  "offers": [
-    { "id": "kitchen_1", "niche": "kitchen", "name": "Замер и 3D-проект бесплатно" },
-    { "id": "kitchen_2", "niche": "kitchen", "name": "Скидка 30% до конца месяца" },
-    { "id": "ceiling_1", "niche": "ceiling", "name": "Потолок от 990 ₽/м²" },
-    { "id": "ceiling_2", "niche": "ceiling", "name": "Монтаж за один день" },
-    { "id": "windows_1", "niche": "windows", "name": "Окно под ключ 12 900 ₽" },
-    { "id": "windows_2", "niche": "windows", "name": "Рассрочка 0%" },
-    { "id": "auto_1",    "niche": "auto",    "name": "Диагностика бесплатно" },
-    { "id": "dental_1",  "niche": "dental",  "name": "Имплант под ключ 29 900 ₽" },
-    { "id": "dental_2",  "niche": "dental",  "name": "Чистка и отбеливание 2 500 ₽" }
-  ],
+  "niches": [],
+  "offers": [],
   "stages": [
-    { "id": "lead", "name": "Заявки" },
-    { "id": "qual", "name": "Квал. заявки" },
-    { "id": "zoom", "name": "Проведённые зумы" },
-    { "id": "won",  "name": "Продажи" }
+    {
+      "id": "lead",
+      "name": "Заявки"
+    },
+    {
+      "id": "qual",
+      "name": "Квал. заявки"
+    },
+    {
+      "id": "zoom",
+      "name": "Проведённые зумы"
+    },
+    {
+      "id": "won",
+      "name": "Продажи"
+    }
   ]
 }
