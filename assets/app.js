@@ -30,9 +30,22 @@ const TODAY = iso(new Date());
 
 /* ===================== state ===================== */
 const S = {
-  leads: [], spend: [], channels: [], stages: [], goals: {},
-  from: monStart(TODAY), to: TODAY, preset: 'month', sel: new Set()
+  leads: [], spend: [], channels: [], stages: [], goals: {}, niches: [], offers: [],
+  from: monStart(TODAY), to: TODAY, preset: 'month', sel: new Set(),
+  tab: 'summary', cols: null, sort: { key:'spend', dir:-1 }, collapsed: new Set()
 };
+
+/* колонки таблицы дозвонов */
+const COLS = [
+  { k:'spend', n:'Бюджет',      f:v => money(v),            on:true },
+  { k:'leads', n:'Цифра 1',     f:v => nf(v),               on:true, hint:'заявка' },
+  { k:'cpl',   n:'CPL',         f:v => v ? money(v) : '—',  on:true },
+  { k:'quals', n:'Квал. заявки',f:v => nf(v),               on:true },
+  { k:'cpql',  n:'CPL квала',   f:v => v ? money(v) : '—',  on:true },
+  { k:'zooms', n:'Зумы',        f:v => nf(v),               on:true },
+  { k:'sales', n:'Продажи',     f:v => nf(v),               on:true },
+  { k:'revenue', n:'Выручка',   f:v => v ? moneyShort(v) : '—', on:false }
+];
 
 /* ===================== load ===================== */
 async function boot() {
@@ -42,6 +55,7 @@ async function boot() {
         .map(u => fetch(u, {cache:'no-store'}).then(r => { if (!r.ok) throw new Error(u); return r.json(); }))
     );
     S.channels = cfg.channels; S.stages = cfg.stages;
+    S.niches = cfg.niches || []; S.offers = cfg.offers || [];
     S.leads = leads; S.spend = spend; S.goals = goals;
     S.sel = new Set(S.channels.map(c => c.id));
   } catch (e) {
@@ -49,7 +63,7 @@ async function boot() {
       Открой папку через локальный сервер: <code>python3 -m http.server</code></div></div>`;
     return;
   }
-  initTheme(); initDate(); initChannels();
+  initTheme(); initDate(); initChannels(); initCols(); initTabs();
   $('#updated').textContent = 'обновлено ' + long(TODAY);
   render();
 }
@@ -110,7 +124,20 @@ function series(from, to, kind) {
 }
 
 /* ===================== render ===================== */
+function initTabs() {
+  $$('#tabs .tab').forEach(b => b.onclick = () => {
+    S.tab = b.dataset.tab;
+    $$('#tabs .tab').forEach(x => x.classList.toggle('is-active', x === b));
+    $('#view-summary').hidden = S.tab !== 'summary';
+    $('#view-calls').hidden   = S.tab !== 'calls';
+    $('#chanCtrl').hidden = S.tab !== 'summary';
+    $('#colCtrl').hidden  = S.tab !== 'calls';
+    render();
+  });
+}
+
 function render() {
+  if (S.tab === 'calls') return renderCalls();
   const cur  = slice(S.from, S.to);
   const len  = daysIn(S.from, S.to);
   const pTo   = addD(S.from, -1), pFrom = addD(pTo, -(len - 1));
@@ -225,6 +252,142 @@ function renderKpis(c, p, pFrom, pTo) {
     node.title = `${it.n}: ${it.v}\nпрошлый период (${short(pFrom)}–${short(pTo)}): ${
       it.kind === 'spend' || it.n === 'Выручка' ? moneyShort(it.prev) : it.n === 'Цена квала' ? money(it.prev) : nf(it.prev)}`;
     box.append(node);
+  });
+}
+
+/* ===================== лист «Дозвоны» ===================== */
+function callRows(from, to) {
+  const L = S.leads.filter(l => l.channel === 'calls' && inRange(l.date, from, to));
+  const SP = S.spend.filter(s => s.channel === 'calls' && inRange(s.date, from, to));
+  const blank = () => ({ spend:0, leads:0, quals:0, zooms:0, sales:0, revenue:0 });
+  const agg = new Map();           // offerId -> метрики
+  S.offers.forEach(o => agg.set(o.id, blank()));
+  SP.forEach(s => { const o = agg.get(s.offer); if (o) o.spend += s.amount; });
+  L.forEach(l => {
+    const o = agg.get(l.offer); if (!o) return;
+    o.leads++;
+    if (l.qual_date) o.quals++;
+    if (l.zoom_date) o.zooms++;
+    if (l.won_date) { o.sales++; o.revenue += l.amount || 0; }
+  });
+  const fin = m => ({ ...m, cpl: m.leads ? m.spend/m.leads : 0, cpql: m.quals ? m.spend/m.quals : 0 });
+
+  const byNiche = S.niches.map(nch => {
+    const offers = S.offers.filter(o => o.niche === nch.id)
+      .map(o => ({ id:o.id, name:o.name, ...fin(agg.get(o.id)) }))
+      .filter(o => o.spend > 0 || o.leads > 0);
+    const t = blank();
+    offers.forEach(o => { t.spend += o.spend; t.leads += o.leads; t.quals += o.quals;
+                          t.zooms += o.zooms; t.sales += o.sales; t.revenue += o.revenue; });
+    return { id:nch.id, name:nch.name, offers, ...fin(t) };
+  }).filter(n => n.offers.length);
+
+  const tot = blank();
+  byNiche.forEach(n => { tot.spend += n.spend; tot.leads += n.leads; tot.quals += n.quals;
+                         tot.zooms += n.zooms; tot.sales += n.sales; tot.revenue += n.revenue; });
+  return { byNiche, total: fin(tot) };
+}
+
+function renderCalls() {
+  const { byNiche, total } = callRows(S.from, S.to);
+  const len = daysIn(S.from, S.to);
+  const pTo = addD(S.from, -1), pFrom = addD(pTo, -(len - 1));
+  const prev = callRows(pFrom, pTo).total;
+
+  /* сводка */
+  const tiles = [
+    { n:'Бюджет',       v: money(total.spend),  raw:total.spend, prev:prev.spend, neutral:true },
+    { n:'Цифра 1',      v: nf(total.leads),     raw:total.leads, prev:prev.leads },
+    { n:'CPL',          v: total.cpl ? money(total.cpl) : '—', raw:total.cpl, prev:prev.cpl, inv:true },
+    { n:'Квал. заявки', v: nf(total.quals),     raw:total.quals, prev:prev.quals },
+    { n:'CPL квала',    v: total.cpql ? money(total.cpql) : '—', raw:total.cpql, prev:prev.cpql, inv:true },
+    { n:'Зумы',         v: nf(total.zooms),     raw:total.zooms, prev:prev.zooms },
+    { n:'Продажи',      v: nf(total.sales),     raw:total.sales, prev:prev.sales }
+  ];
+  const top = $('#callsTop'); top.className = 'kpis kpis--7'; top.innerHTML = '';
+  tiles.forEach(it => {
+    const d = it.prev > 0 ? (it.raw - it.prev) / it.prev * 100 : (it.raw > 0 ? 100 : 0);
+    const good = it.inv ? d < 0 : d > 0;
+    const cls = it.neutral || Math.abs(d) < 0.5 ? 'flat' : good ? 'up' : 'down';
+    const arrow = Math.abs(d) < 0.5 ? '' : d > 0 ? '↑' : '↓';
+    top.append(el('div','kpi',`
+      <div class="kpi__name">${it.n}</div>
+      <div class="kpi__val">${it.v}</div>
+      <div class="kpi__sub"><span class="delta ${cls}">${arrow}${Math.abs(Math.round(d))}%</span></div>`));
+  });
+
+  /* таблица */
+  const cols = COLS.filter(c => S.cols.has(c.k));
+  const t = $('#callsTbl'); t.innerHTML = '';
+  const thead = el('thead'); const hr = el('tr');
+  const th0 = el('th','tbl__name','Ниша и оффер'); hr.append(th0);
+  cols.forEach(c => {
+    const th = el('th','tbl__num' + (S.sort.key === c.k ? ' is-sort' : ''),
+      `${c.n}${S.sort.key === c.k ? `<span class="tbl__arr">${S.sort.dir < 0 ? '↓' : '↑'}</span>` : ''}`);
+    th.onclick = () => { S.sort = { key:c.k, dir: S.sort.key === c.k ? -S.sort.dir : -1 }; renderCalls(); };
+    hr.append(th);
+  });
+  thead.append(hr); t.append(thead);
+
+  const sorted = [...byNiche].sort((a,b) => (a[S.sort.key] - b[S.sort.key]) * S.sort.dir);
+  const tb = el('tbody');
+  sorted.forEach(n => {
+    const open = !S.collapsed.has(n.id);
+    const tr = el('tr','tbl__niche');
+    tr.append(el('td','tbl__name',
+      `<span class="tbl__t" title="${n.name}"><span class="tbl__chev">${open ? '▾' : '▸'}</span>${n.name}
+       <span class="tbl__cnt">${n.offers.length}</span></span>`));
+    cols.forEach(c => tr.append(el('td','tbl__num', c.f(n[c.k]))));
+    tr.onclick = () => { S.collapsed.has(n.id) ? S.collapsed.delete(n.id) : S.collapsed.add(n.id); renderCalls(); };
+    tb.append(tr);
+    if (!open) return;
+    [...n.offers].sort((a,b) => (a[S.sort.key] - b[S.sort.key]) * S.sort.dir).forEach(o => {
+      const r = el('tr','tbl__offer');
+      r.append(el('td','tbl__name', `<span class="tbl__t" title="${o.name}">${o.name}</span>`));
+      cols.forEach(c => r.append(el('td','tbl__num', c.f(o[c.k]))));
+      tb.append(r);
+    });
+  });
+  t.append(tb);
+
+  const tf = el('tfoot'); const fr = el('tr');
+  fr.append(el('td','tbl__name','Итого'));
+  cols.forEach(c => fr.append(el('td','tbl__num', c.f(total[c.k]))));
+  tf.append(fr); t.append(tf);
+
+  if (!byNiche.length) t.innerHTML = '<tbody><tr><td class="empty">За выбранный период дозвонов не было</td></tr></tbody>';
+}
+
+/* выбор колонок */
+function initCols() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem('gbm-cols')); } catch {}
+  S.cols = new Set(Array.isArray(saved) && saved.length ? saved : COLS.filter(c => c.on).map(c => c.k));
+  const ctrl = $('#colCtrl'), btn = $('#colBtn'), pop = $('#colPop');
+  btn.onclick = e => {
+    e.stopPropagation();
+    const open = !pop.hidden;
+    closeAll();
+    if (!open) { pop.hidden = false; ctrl.classList.add('is-open'); drawCols(); }
+  };
+  pop.onclick = e => e.stopPropagation();
+  colLabel();
+}
+function colLabel() { $('#colLabel').textContent = `Колонки · ${S.cols.size}`; }
+function drawCols() {
+  const pop = $('#colPop'); pop.innerHTML = '';
+  COLS.forEach(c => {
+    const on = S.cols.has(c.k);
+    const row = el('label','chan__row' + (on ? ' on' : ''), `
+      <span class="chan__box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M5 13l4 4L19 7"/></svg></span>
+      <span>${c.n}</span>${c.hint ? `<span class="chan__n">${c.hint}</span>` : ''}`);
+    row.onclick = e => {
+      e.preventDefault();
+      if (S.cols.has(c.k)) { if (S.cols.size > 1) S.cols.delete(c.k); } else S.cols.add(c.k);
+      try { localStorage.setItem('gbm-cols', JSON.stringify([...S.cols])); } catch {}
+      drawCols(); colLabel(); renderCalls();
+    };
+    pop.append(row);
   });
 }
 
