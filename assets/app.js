@@ -115,11 +115,34 @@ function render() {
   const len  = daysIn(S.from, S.to);
   const pTo   = addD(S.from, -1), pFrom = addD(pTo, -(len - 1));
   const prev = slice(pFrom, pTo);
+  renderTop(cur, prev);
   renderGoals();
   renderKpis(cur, prev, pFrom, pTo);
   renderFunnel(cur.funnel);
   renderRings(cur.funnel);
   renderCharts();
+}
+
+/* ---------- top: бюджет и цена заявки ---------- */
+function renderTop(c, p) {
+  const items = [
+    { n:'Бюджет',                  v: money(c.spend), raw:c.spend, prev:p.spend, kind:'spend', neutral:true },
+    { n:'Стоимость первичной заявки', v: c.cpl ? money(c.cpl) : '—', raw:c.cpl, prev:p.cpl, kind:null }
+  ];
+  const box = $('#top'); box.innerHTML = '';
+  items.forEach(it => {
+    const d = it.prev > 0 ? (it.raw - it.prev) / it.prev * 100 : (it.raw > 0 ? 100 : 0);
+    const cls = it.neutral || Math.abs(d) < 0.5 ? 'flat' : d < 0 ? 'up' : 'down';
+    const arrow = Math.abs(d) < 0.5 ? '' : d > 0 ? '↑' : '↓';
+    const node = el('div','big',`
+      <div class="big__name">${it.n}</div>
+      <div class="big__row">
+        <span class="big__val">${it.v}</span>
+        <span class="delta ${cls}">${arrow}${Math.abs(Math.round(d))}%</span>
+      </div>`);
+    if (it.kind) { const s = el('div','big__spark'); s.append(sparkline(series(S.from, S.to, it.kind), true)); node.append(s); }
+    box.append(node);
+  });
 }
 
 /* ---------- goals ---------- */
@@ -177,7 +200,6 @@ function renderGoals() {
 /* ---------- kpi ---------- */
 function renderKpis(c, p, pFrom, pTo) {
   const items = [
-    { n:'Бюджет',        v: moneyShort(c.spend),  raw:c.spend,  prev:p.spend,  kind:'spend',  inv:true },
     { n:'Заявки',        v: nf(c.nLeads),         raw:c.nLeads, prev:p.nLeads, kind:'leads' },
     { n:'Квал. заявки',  v: nf(c.quals),          raw:c.quals,  prev:p.quals,  kind:'quals' },
     { n:'Цена квала',    v: c.cpql ? money(c.cpql) : '—', raw:c.cpql, prev:p.cpql, kind:null, inv:true },
