@@ -83,14 +83,14 @@
   "niche": "stroymat",
   "offer": "stroymat_1",
   "name": "Заявка 5",
-  "qual": false,
-  "qual_date": null,
+  "qual": true,
+  "qual_date": "2026-10-06",
   "zoom_set_date": null,
   "zoom_date": null,
   "offer_date": null,
   "won_date": null,
   "amount": 0,
-  "status": "new",
+  "status": "qual",
   "lost_reason": null,
   "note": ""
  }
