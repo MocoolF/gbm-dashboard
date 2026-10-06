@@ -90,13 +90,12 @@ const inRange = (d, a, b) => !!d && d >= a && d <= b;
 const chanOk  = l => S.sel.has(l.channel);
 
 function slice(from, to) {
-  const L = S.leads.filter(l => chanOk(l) && inRange(l.date, from, to));          // когорта заявок
+  const L = S.leads.filter(l => chanOk(l) && inRange(l.date, from, to));   // когорта заявок периода
   const sp = S.spend.filter(s => S.sel.has(s.channel) && inRange(s.date, from, to));
-  const ev = S.leads.filter(chanOk);                                              // события в периоде
   const spend  = sp.reduce((a,s) => a + s.amount, 0);
   const quals  = L.filter(l => l.qual_date).length;
-  const zooms  = ev.filter(l => inRange(l.zoom_date, from, to)).length;
-  const sales  = ev.filter(l => inRange(l.won_date, from, to));
+  const zooms  = L.filter(l => l.zoom_date).length;
+  const sales  = L.filter(l => l.won_date);
   return {
     leads: L, spend, nLeads: L.length, quals,
     cpl:  L.length ? spend / L.length : 0,
@@ -107,9 +106,9 @@ function slice(from, to) {
       lead: L.length,
       qual: quals,
       zoom_set: L.filter(l => l.zoom_set_date).length,
-      zoom:     L.filter(l => l.zoom_date).length,
+      zoom:     zooms,
       offer:    L.filter(l => l.offer_date).length,
-      won:      L.filter(l => l.won_date).length
+      won:      sales.length
     }
   };
 }
@@ -121,8 +120,12 @@ function series(from, to, kind) {
   if (kind === 'spend') {
     S.spend.forEach(s => { if (S.sel.has(s.channel) && out.has(s.date)) out.set(s.date, out.get(s.date) + s.amount); });
   } else {
-    const key = { leads:'date', quals:'qual_date', zooms:'zoom_date', sales:'won_date' }[kind];
-    S.leads.forEach(l => { if (!chanOk(l)) return; const d = l[key]; if (d && out.has(d)) out.set(d, out.get(d) + 1); });
+    // считаем по дате заявки: метрика падает в тот день, когда лид пришёл
+    const need = { leads:null, quals:'qual_date', zooms:'zoom_date', sales:'won_date' }[kind];
+    S.leads.forEach(l => {
+      if (!chanOk(l) || (need && !l[need])) return;
+      if (out.has(l.date)) out.set(l.date, out.get(l.date) + 1);
+    });
   }
   return [...out].map(([date, v]) => ({ date, v }));
 }
@@ -191,10 +194,8 @@ function renderGoals() {
   const passed = Math.min(Math.max(daysIn(mS, TODAY < mE ? TODAY : mE), 0), total);
   const left = total - passed;
   const ev = S.leads.filter(chanOk);
-  const fact = {
-    leads: ev.filter(l => inRange(l.date, mS, mE)).length,
-    zooms: ev.filter(l => inRange(l.zoom_date, mS, mE)).length
-  };
+  const cohort = ev.filter(l => inRange(l.date, mS, mE));
+  const fact = { leads: cohort.length, zooms: cohort.filter(l => l.zoom_date).length };
   const names = { leads:['Первичные заявки',['заявка','заявки','заявок']], zooms:['Зумы / консультации',['зум','зума','зумов']] };
 
   box.innerHTML = '';
@@ -452,7 +453,7 @@ function ringSvg(p, accent) {
 function renderCharts() {
   const n = daysIn(S.from, S.to);
   const step = n <= 45 ? 'day' : n <= 200 ? 'week' : 'month';
-  $('#dynHint').textContent = `${short(S.from)} — ${short(S.to)} · по ${{day:'дням',week:'неделям',month:'месяцам'}[step]}`;
+  $('#dynHint').textContent = `${short(S.from)} — ${short(S.to)} · по ${{day:'дням',week:'неделям',month:'месяцам'}[step]} · всё по дате заявки`;
   const defs = [
     { t:'Бюджет',      kind:'spend', color:'var(--s1)', money:true },
     { t:'Заявки',      kind:'leads', color:'var(--s2)' },
