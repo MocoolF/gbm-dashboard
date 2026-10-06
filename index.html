@@ -19,6 +19,7 @@
     <nav class="tabs" id="tabs">
       <button class="tab is-active" data-tab="summary">Сводка</button>
       <button class="tab" data-tab="calls">Дозвоны</button>
+      <button class="tab" data-tab="data">Данные</button>
     </nav>
     <button class="icon-btn" id="themeBtn" title="Тема" aria-label="Переключить тему">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -121,6 +122,45 @@
   <footer class="foot">
     Дозвоны: нажатие «1» = первичная заявка. Разрез по нишам и офферам ведётся в полях <code>niche</code> и <code>offer</code>
   </footer>
+</main>
+
+<main class="wrap" id="view-data" hidden>
+
+  <section class="card" id="authCard"></section>
+
+  <section class="grid2" id="formsBox">
+    <div class="card">
+      <div class="card__head">
+        <h2 class="card__title">Добавить заявки</h2>
+        <p class="card__hint">Для дозвонов заявка — это нажатие «1»</p>
+      </div>
+      <form class="form" id="leadForm"></form>
+    </div>
+    <div class="card">
+      <div class="card__head">
+        <h2 class="card__title">Добавить расход</h2>
+        <p class="card__hint">Сколько потрачено за день по инструменту</p>
+      </div>
+      <form class="form" id="spendForm"></form>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__head">
+      <h2 class="card__title">Заявки</h2>
+      <p class="card__hint">Меняй статус — даты этапов проставятся сами. Изменения уходят на сайт по кнопке «Сохранить»</p>
+    </div>
+    <div class="tablewrap"><table class="tbl" id="editTbl"></table></div>
+    <div class="form__foot" id="editFoot"></div>
+  </section>
+
+  <section class="card">
+    <div class="card__head">
+      <h2 class="card__title">История изменений</h2>
+      <p class="card__hint">Каждая правка данных — отдельная запись</p>
+    </div>
+    <div id="history"></div>
+  </section>
 </main>
 
 <div class="tip" id="tip" hidden></div>

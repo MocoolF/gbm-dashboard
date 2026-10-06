@@ -32,8 +32,11 @@ const TODAY = iso(new Date());
 const S = {
   leads: [], spend: [], channels: [], stages: [], goals: {}, niches: [], offers: [],
   from: monStart(TODAY), to: TODAY, preset: 'month', sel: new Set(),
-  tab: 'summary', cols: null, sort: { key:'spend', dir:-1 }, collapsed: new Set()
+  tab: 'summary', cols: null, sort: { key:'spend', dir:-1 }, collapsed: new Set(),
+  pending: new Map(), removed: new Set(), nf: {}
 };
+
+const REPO = 'MocoolF/gbm-dashboard';
 
 /* колонки таблицы дозвонов */
 const COLS = [
@@ -66,6 +69,7 @@ async function boot() {
   initTheme(); initDate(); initChannels(); initCols(); initTabs();
   $('#updated').textContent = 'обновлено ' + long(TODAY);
   render();
+  if (GH.token) reload();
 }
 
 /* ===================== theme ===================== */
@@ -130,14 +134,17 @@ function initTabs() {
     $$('#tabs .tab').forEach(x => x.classList.toggle('is-active', x === b));
     $('#view-summary').hidden = S.tab !== 'summary';
     $('#view-calls').hidden   = S.tab !== 'calls';
+    $('#view-data').hidden    = S.tab !== 'data';
     $('#chanCtrl').hidden = S.tab !== 'summary';
     $('#colCtrl').hidden  = S.tab !== 'calls';
+    $('.filters').hidden  = S.tab === 'data';
     render();
   });
 }
 
 function render() {
   if (S.tab === 'calls') return renderCalls();
+  if (S.tab === 'data')  return renderData();
   const cur  = slice(S.from, S.to);
   const len  = daysIn(S.from, S.to);
   const pTo   = addD(S.from, -1), pFrom = addD(pTo, -(len - 1));
@@ -705,6 +712,381 @@ function drawChannels() {
   const none = el('button','btn','Снять'); none.onclick = () => { S.sel = new Set(); drawChannels(); chanLabel(); render(); };
   foot.append(all, none);
   pop.append(foot);
+}
+
+/* ===================== GitHub как хранилище ===================== */
+const GH = {
+  get token() { try { return localStorage.getItem('gbm-gh-token') || ''; } catch { return ''; } },
+  set token(v) { try { v ? localStorage.setItem('gbm-gh-token', v) : localStorage.removeItem('gbm-gh-token'); } catch {} }
+};
+
+function b64enc(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+  return btoa(bin);
+}
+const b64dec = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g,'')), c => c.charCodeAt(0)));
+
+async function ghApi(path, opts = {}) {
+  const h = { 'Accept':'application/vnd.github+json', ...(opts.headers || {}) };
+  if (GH.token) h.Authorization = 'Bearer ' + GH.token;
+  const r = await fetch(`https://api.github.com/repos/${REPO}${path}`, { ...opts, headers: h });
+  const txt = await r.text();
+  if (!r.ok) throw new Error(`${r.status}: ${(JSON.parse(txt || '{}').message) || txt.slice(0,120)}`);
+  return txt ? JSON.parse(txt) : {};
+}
+async function ghRead(file) {
+  const j = await ghApi(`/contents/${file}?ref=main&_=${Date.now()}`);
+  return { sha: j.sha, data: JSON.parse(b64dec(j.content)) };
+}
+async function ghSave(file, mutate, message) {
+  let last;
+  for (let i = 0; i < 3; i++) {
+    const { sha, data } = await ghRead(file);
+    const next = mutate(JSON.parse(JSON.stringify(data)));
+    try {
+      await ghApi(`/contents/${file}`, { method:'PUT', body: JSON.stringify({
+        message, content: b64enc(JSON.stringify(next, null, 1)), sha, branch:'main' }) });
+      return next;
+    } catch (e) { last = e; if (!/^(409|422)/.test(e.message)) throw e; }
+  }
+  throw last;
+}
+
+/* латиница для id */
+const SLUG_MAP = { а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',
+  н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'c',ч:'ch',ш:'sh',щ:'sch',ъ:'',ы:'y',ь:'',э:'e',ю:'yu',я:'ya' };
+function slug(s, used) {
+  let out = s.toLowerCase().split('').map(c => SLUG_MAP[c] ?? c).join('')
+    .replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,28) || 'id';
+  let base = out, i = 2;
+  while (used.includes(out)) out = `${base}_${i++}`;
+  return out;
+}
+const nextLeadId = () => {
+  const max = S.leads.reduce((m,l) => Math.max(m, parseInt(String(l.id).replace(/\D/g,''), 10) || 0), 0);
+  return n => `L${String(max + n).padStart(4,'0')}`;
+};
+
+/* ===================== лист «Данные» ===================== */
+const STATUSES = [
+  ['new','Заявка'], ['qual','Квал'], ['zoom_set','Зум назначен'], ['zoom','Зум проведён'],
+  ['offer','КП отправлено'], ['won','Продажа'], ['lost','Отказ']
+];
+const FLOW = [['qual','qual_date'],['zoom_set','zoom_set_date'],['zoom','zoom_date'],['offer','offer_date'],['won','won_date']];
+
+function applyStatus(l, st, date) {
+  const d = date || TODAY;
+  if (st === 'lost') { l.status = 'lost'; l.qual = !!l.qual_date; return; }
+  const idx = st === 'new' ? -1 : FLOW.findIndex(f => f[0] === st);
+  FLOW.forEach(([, f], i) => { if (i <= idx) { if (!l[f]) l[f] = d; } else l[f] = null; });
+  l.qual = !!l.qual_date;
+  l.status = st;
+  l.lost_reason = null;
+  if (st !== 'won') l.amount = 0;
+}
+
+function renderData() { renderAuth(); renderForms(); renderEdit(); renderHistory(); }
+
+function renderAuth() {
+  const box = $('#authCard');
+  if (GH.token) {
+    box.innerHTML = `<div class="auth auth--on">
+      <span class="auth__dot"></span>
+      <span>Подключено к <b>${REPO}</b> — изменения сохраняются на сайт</span>
+      <button class="btn" id="authOff">Отключить</button></div>`;
+    $('#authOff').onclick = () => { GH.token = ''; renderData(); };
+  } else {
+    box.innerHTML = `<div class="auth">
+      <div class="auth__head">Чтобы вносить данные с этого устройства, нужен ключ доступа</div>
+      <ol class="auth__steps">
+        <li>Открой <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">страницу создания токена</a></li>
+        <li>Repository access → <b>Only select repositories</b> → выбери <b>gbm-dashboard</b></li>
+        <li>Permissions → Repository permissions → <b>Contents</b> → <b>Read and write</b></li>
+        <li>Generate token, скопируй и вставь сюда</li>
+      </ol>
+      <div class="auth__row">
+        <input class="inp" id="tokenInp" type="password" placeholder="github_pat_..." autocomplete="off">
+        <button class="btn btn--primary" id="authOn">Подключить</button>
+      </div>
+      <div class="auth__note">Ключ хранится только в этом браузере и никуда не отправляется, кроме GitHub.</div>
+    </div>`;
+    $('#authOn').onclick = async () => {
+      const v = $('#tokenInp').value.trim();
+      if (!v) return;
+      GH.token = v;
+      try { await ghApi('/contents/data/leads.json?ref=main'); renderData(); await reload(); }
+      catch (e) { GH.token = ''; alertBox('Ключ не подошёл: ' + e.message); renderData(); }
+    };
+  }
+}
+
+function alertBox(msg) {
+  const n = el('div','toast', msg);
+  document.body.append(n);
+  setTimeout(() => n.remove(), 5000);
+}
+
+/* ---------- формы ---------- */
+function fieldSel(id, label, opts, val) {
+  return `<label class="fld"><span class="fld__l">${label}</span>
+    <select class="sel" id="${id}">${opts.map(o => `<option value="${o[0]}"${o[0]===val?' selected':''}>${o[1]}</option>`).join('')}</select></label>`;
+}
+function renderForms() {
+  const ch = S.channels.map(c => [c.id, c.name]);
+  ['leadForm','spendForm'].forEach(fid => {
+    const isLead = fid === 'leadForm';
+    const f = $('#' + fid);
+    const st = S.nf[fid] = S.nf[fid] || { channel:'calls', niche:'', offer:'', newNiche:false, newOffer:false };
+    if (!S.niches.some(n => n.id === st.niche)) st.niche = S.niches[0]?.id || '';
+    const offs = S.offers.filter(o => o.niche === st.niche);
+    if (!offs.some(o => o.id === st.offer)) st.offer = offs[0]?.id || '';
+    const isCalls = st.channel === 'calls';
+
+    f.innerHTML = `
+      <label class="fld"><span class="fld__l">Дата</span>
+        <input class="inp" type="date" id="${fid}_date" value="${TODAY}" max="${TODAY}"></label>
+      ${fieldSel(fid+'_ch','Инструмент', ch, st.channel)}
+      ${isCalls ? `
+      <label class="fld"><span class="fld__l">Ниша</span>
+        <div class="fld__row">
+          ${st.newNiche || !S.niches.length
+            ? `<input class="inp" id="${fid}_nnew" placeholder="Например: Стройматериалы">`
+            : `<select class="sel" id="${fid}_n">${S.niches.map(n => `<option value="${n.id}"${n.id===st.niche?' selected':''}>${n.name}</option>`).join('')}</select>`}
+          <button type="button" class="btn btn--icon" id="${fid}_ntog" title="Новая ниша">${st.newNiche && S.niches.length ? '×' : '+'}</button>
+        </div></label>
+      <label class="fld"><span class="fld__l">Оффер</span>
+        <div class="fld__row">
+          ${st.newOffer || !offs.length
+            ? `<input class="inp" id="${fid}_onew" placeholder="Например: Оффер 1">`
+            : `<select class="sel" id="${fid}_o">${offs.map(o => `<option value="${o.id}"${o.id===st.offer?' selected':''}>${o.name}</option>`).join('')}</select>`}
+          <button type="button" class="btn btn--icon" id="${fid}_otog" title="Новый оффер">${st.newOffer && offs.length ? '×' : '+'}</button>
+        </div></label>` : ''}
+      <label class="fld"><span class="fld__l">${isLead ? 'Сколько заявок' : 'Сумма, ₽'}</span>
+        <input class="inp" type="number" id="${fid}_v" min="${isLead?1:0}" step="${isLead?1:1}" value="${isLead?1:''}" placeholder="${isLead?'':'1204'}"></label>
+      <button type="submit" class="btn btn--primary btn--wide">${isLead ? 'Добавить заявки' : 'Добавить расход'}</button>`;
+
+    $(`#${fid}_ch`).onchange = e => { st.channel = e.target.value; renderForms(); };
+    const nt = $(`#${fid}_ntog`), ot = $(`#${fid}_otog`);
+    if (nt) nt.onclick = () => { st.newNiche = !st.newNiche; renderForms(); };
+    if (ot) ot.onclick = () => { st.newOffer = !st.newOffer; renderForms(); };
+    const ns = $(`#${fid}_n`); if (ns) ns.onchange = e => { st.niche = e.target.value; st.offer=''; renderForms(); };
+    const os = $(`#${fid}_o`); if (os) os.onchange = e => { st.offer = e.target.value; };
+    f.onsubmit = e => { e.preventDefault(); isLead ? submitLeads(fid, st) : submitSpend(fid, st); };
+  });
+}
+
+/* разобрать ниша/оффер из формы, при необходимости завести новые */
+function pickNO(fid, st) {
+  const res = { niche:null, offer:null, nicheName:'', offerName:'', newN:null, newO:null };
+  if (st.channel !== 'calls') return res;
+  const nnew = $(`#${fid}_nnew`), onew = $(`#${fid}_onew`);
+  if (nnew) {
+    const name = nnew.value.trim(); if (!name) throw new Error('Укажи нишу');
+    const exist = S.niches.find(n => n.name.toLowerCase() === name.toLowerCase());
+    if (exist) { res.niche = exist.id; res.nicheName = exist.name; }
+    else { res.niche = slug(name, S.niches.map(n => n.id)); res.nicheName = name; res.newN = { id:res.niche, name }; }
+  } else { res.niche = $(`#${fid}_n`).value; res.nicheName = S.niches.find(n => n.id === res.niche)?.name || ''; }
+  if (onew) {
+    const name = onew.value.trim(); if (!name) throw new Error('Укажи оффер');
+    const exist = S.offers.find(o => o.niche === res.niche && o.name.toLowerCase() === name.toLowerCase());
+    if (exist) { res.offer = exist.id; res.offerName = exist.name; }
+    else { res.offer = slug(res.niche + '_' + name, S.offers.map(o => o.id)); res.offerName = name;
+           res.newO = { id:res.offer, niche:res.niche, name }; }
+  } else { res.offer = $(`#${fid}_o`).value; res.offerName = S.offers.find(o => o.id === res.offer)?.name || ''; }
+  return res;
+}
+
+async function saveDict(no) {
+  if (!no.newN && !no.newO) return;
+  await ghSave('data/channels.json', d => {
+    if (no.newN && !d.niches.some(x => x.id === no.newN.id)) d.niches.push(no.newN);
+    if (no.newO && !d.offers.some(x => x.id === no.newO.id)) d.offers.push(no.newO);
+    return d;
+  }, `Справочник: ${[no.newN && 'ниша ' + no.newN.name, no.newO && 'оффер ' + no.newO.name].filter(Boolean).join(', ')}`);
+  if (no.newN) S.niches.push(no.newN);
+  if (no.newO) S.offers.push(no.newO);
+}
+
+async function submitLeads(fid, st) {
+  if (!requireToken()) return;
+  const btn = $(`#${fid} button[type=submit]`);
+  try {
+    const date = $(`#${fid}_date`).value;
+    const n = parseInt($(`#${fid}_v`).value, 10);
+    if (!date || !(n > 0)) throw new Error('Проверь дату и количество');
+    const no = pickNO(fid, st);
+    busy(btn, true);
+    await saveDict(no);
+    const mk = nextLeadId();
+    const add = Array.from({length:n}, (_, i) => ({
+      id: mk(i + 1), date, channel: st.channel, service: null,
+      niche: no.niche, offer: no.offer, name: '',
+      qual:false, qual_date:null, zoom_set_date:null, zoom_date:null,
+      offer_date:null, won_date:null, amount:0, status:'new', lost_reason:null, note:''
+    }));
+    const where = st.channel === 'calls' ? `${no.nicheName} / ${no.offerName}`
+      : S.channels.find(c => c.id === st.channel).name;
+    await ghSave('data/leads.json', d => d.concat(add), `+${n} ${plural(n,['заявка','заявки','заявок'])} · ${where} · ${short(date)}`);
+    await reload();
+    alertBox(`Добавлено заявок: ${n}`);
+  } catch (e) { alertBox('Не сохранилось: ' + e.message); }
+  finally { busy(btn, false); }
+}
+
+async function submitSpend(fid, st) {
+  if (!requireToken()) return;
+  const btn = $(`#${fid} button[type=submit]`);
+  try {
+    const date = $(`#${fid}_date`).value;
+    const amount = Math.round(parseFloat($(`#${fid}_v`).value));
+    if (!date || !(amount >= 0)) throw new Error('Проверь дату и сумму');
+    const no = pickNO(fid, st);
+    busy(btn, true);
+    await saveDict(no);
+    const rec = { date, channel: st.channel, amount };
+    if (st.channel === 'calls') { rec.niche = no.niche; rec.offer = no.offer; }
+    const where = st.channel === 'calls' ? `${no.nicheName} / ${no.offerName}`
+      : S.channels.find(c => c.id === st.channel).name;
+    await ghSave('data/spend.json', d => d.concat([rec]), `Расход ${nf(amount)} ₽ · ${where} · ${short(date)}`);
+    await reload();
+    alertBox(`Расход записан: ${money(amount)}`);
+  } catch (e) { alertBox('Не сохранилось: ' + e.message); }
+  finally { busy(btn, false); }
+}
+
+function requireToken() {
+  if (GH.token) return true;
+  alertBox('Сначала подключи ключ доступа — форма вверху листа');
+  return false;
+}
+function busy(btn, on) {
+  if (!btn) return;
+  btn.disabled = on;
+  btn.dataset.t = btn.dataset.t || btn.textContent;
+  btn.textContent = on ? 'Сохраняю…' : btn.dataset.t;
+}
+
+/* ---------- редактирование заявок ---------- */
+function renderEdit() {
+  const t = $('#editTbl'); t.innerHTML = '';
+  const rows = [...S.leads].sort((a,b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id))).slice(0, 60);
+  if (!rows.length) { t.innerHTML = '<tbody><tr><td class="empty">Заявок пока нет</td></tr></tbody>'; $('#editFoot').innerHTML=''; return; }
+  const head = el('thead','', `<tr>
+    <th class="tbl__name">Дата</th><th class="tbl__name">Инструмент</th>
+    <th class="tbl__name">Ниша / оффер</th><th class="tbl__name">Статус</th>
+    <th class="tbl__num">Сумма, ₽</th><th></th></tr>`);
+  t.append(head);
+  const tb = el('tbody');
+  rows.forEach(l => {
+    const cur = S.pending.get(l.id) || l;
+    const gone = S.removed.has(l.id);
+    const off = S.offers.find(o => o.id === cur.offer);
+    const nch = S.niches.find(n => n.id === cur.niche);
+    const tr = el('tr', 'edit' + (gone ? ' is-gone' : '') + (S.pending.has(l.id) ? ' is-dirty' : ''));
+    tr.append(el('td','tbl__name', short(cur.date)));
+    tr.append(el('td','tbl__name', S.channels.find(c => c.id === cur.channel)?.name || cur.channel));
+    tr.append(el('td','tbl__name', off ? `${nch?.name || ''} / ${off.name}` : '—'));
+
+    const tdS = el('td','tbl__name');
+    const sel = el('select','sel sel--sm');
+    sel.innerHTML = STATUSES.map(([v,n]) => `<option value="${v}"${v===cur.status?' selected':''}>${n}</option>`).join('');
+    sel.onchange = e => {
+      const next = JSON.parse(JSON.stringify(S.pending.get(l.id) || l));
+      applyStatus(next, e.target.value);
+      S.pending.set(l.id, next); renderEdit();
+    };
+    sel.disabled = gone; tdS.append(sel); tr.append(tdS);
+
+    const tdA = el('td','tbl__num');
+    if (cur.status === 'won') {
+      const inp = el('input','inp inp--sm');
+      inp.type = 'number'; inp.min = 0; inp.value = cur.amount || '';
+      inp.placeholder = '0';
+      inp.onchange = e => {
+        const next = JSON.parse(JSON.stringify(S.pending.get(l.id) || l));
+        next.amount = Math.round(parseFloat(e.target.value) || 0);
+        S.pending.set(l.id, next); renderEdit();
+      };
+      tdA.append(inp);
+    } else tdA.textContent = '—';
+    tr.append(tdA);
+
+    const tdX = el('td','tbl__num');
+    const x = el('button','iconx', gone ? '↩' : '✕');
+    x.title = gone ? 'Вернуть' : 'Удалить заявку';
+    x.onclick = () => { S.removed.has(l.id) ? S.removed.delete(l.id) : S.removed.add(l.id); renderEdit(); };
+    tdX.append(x); tr.append(tdX);
+    tb.append(tr);
+  });
+  t.append(tb);
+
+  const n = S.pending.size + S.removed.size;
+  const foot = $('#editFoot');
+  foot.innerHTML = n
+    ? `<span class="form__cnt">Не сохранено изменений: <b>${n}</b></span>`
+    : `<span class="form__cnt">Показаны последние ${rows.length} из ${S.leads.length}</span>`;
+  if (n) {
+    const cancel = el('button','btn','Отменить');
+    cancel.onclick = () => { S.pending.clear(); S.removed.clear(); renderEdit(); };
+    const save = el('button','btn btn--primary', `Сохранить (${n})`);
+    save.onclick = () => saveEdits(save);
+    foot.append(cancel, save);
+  }
+}
+
+async function saveEdits(btn) {
+  if (!requireToken()) return;
+  const changed = S.pending.size, gone = S.removed.size;
+  try {
+    busy(btn, true);
+    const msg = [changed && `изменено ${changed}`, gone && `удалено ${gone}`].filter(Boolean).join(', ');
+    await ghSave('data/leads.json', d => d
+      .filter(l => !S.removed.has(l.id))
+      .map(l => S.pending.has(l.id) ? S.pending.get(l.id) : l),
+      `Правка заявок: ${msg}`);
+    S.pending.clear(); S.removed.clear();
+    await reload();
+    alertBox('Сохранено: ' + msg);
+  } catch (e) { alertBox('Не сохранилось: ' + e.message); }
+  finally { busy(btn, false); }
+}
+
+/* ---------- история ---------- */
+async function renderHistory() {
+  const box = $('#history');
+  box.innerHTML = '<div class="empty">Загружаю…</div>';
+  try {
+    const cs = await ghApi(`/commits?path=data&per_page=25&_=${Date.now()}`);
+    if (!cs.length) { box.innerHTML = '<div class="empty">Изменений пока нет</div>'; return; }
+    box.innerHTML = '';
+    const list = el('div','hist');
+    cs.forEach(c => {
+      const d = new Date(c.commit.author.date);
+      const when = d.toLocaleString('ru-RU', { day:'numeric', month:'long', hour:'2-digit', minute:'2-digit' });
+      list.append(el('div','hist__row', `
+        <span class="hist__when">${when}</span>
+        <span class="hist__msg">${(c.commit.message.split('\n')[0]).replace(/</g,'&lt;')}</span>
+        <a class="hist__lnk" href="${c.html_url}" target="_blank" rel="noopener">смотреть</a>`));
+    });
+    box.append(list);
+  } catch (e) { box.innerHTML = `<div class="empty">История недоступна: ${e.message}</div>`; }
+}
+
+/* перечитать данные после записи */
+async function reload() {
+  try {
+    const [cfg, leads, spend, goals] = await Promise.all(
+      ['data/channels.json','data/leads.json','data/spend.json','data/goals.json'].map(async f => {
+        if (GH.token) return (await ghRead(f)).data;
+        return fetch(f + '?_=' + Date.now(), {cache:'no-store'}).then(r => r.json());
+      }));
+    S.channels = cfg.channels; S.stages = cfg.stages;
+    S.niches = cfg.niches || []; S.offers = cfg.offers || [];
+    S.leads = leads; S.spend = spend; S.goals = goals;
+    S.sel = new Set(S.channels.map(c => c.id));
+    if (S.tab === 'data') { renderForms(); renderEdit(); renderHistory(); } else render();
+  } catch (e) { alertBox('Не удалось обновить данные: ' + e.message); }
 }
 
 /* ===================== misc ===================== */

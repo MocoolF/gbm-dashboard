@@ -211,6 +211,60 @@ html[data-theme="dark"] .pop{box-shadow:0 8px 32px rgba(0,0,0,.5)}
 .tbl tfoot td{font-weight:700;border-top:1.5px solid var(--line);border-bottom:none;padding-top:11px}
 .pop--col{min-width:210px}
 
+/* ---------- формы ввода ---------- */
+.inp,.sel{width:100%;height:38px;padding:0 10px;font:inherit;font-size:13.5px;color:var(--ink);
+  background:var(--surface);border:1px solid var(--line);border-radius:9px;outline:none;min-width:0}
+.sel{appearance:none;cursor:pointer;padding-right:28px;
+  background-image:linear-gradient(45deg,transparent 50%,var(--ink-3) 50%),linear-gradient(135deg,var(--ink-3) 50%,transparent 50%);
+  background-position:calc(100% - 15px) 16px,calc(100% - 10px) 16px;background-size:5px 5px;background-repeat:no-repeat}
+.inp:focus,.sel:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.inp--sm,.sel--sm{height:30px;font-size:12.5px;padding:0 8px}
+.sel--sm{padding-right:24px;max-width:170px;background-position:calc(100% - 13px) 13px,calc(100% - 9px) 13px}
+.inp--sm{max-width:110px;text-align:right}
+.form{display:flex;flex-direction:column;gap:11px}
+.fld{display:flex;flex-direction:column;gap:5px}
+.fld__l{font-size:11.5px;color:var(--ink-3);font-weight:500}
+.fld__row{display:flex;gap:6px}
+.btn--icon{width:38px;flex:none;padding:0;font-size:17px;line-height:1;color:var(--ink-2)}
+.btn--wide{width:100%;height:38px;margin-top:3px}
+.form__foot{display:flex;align-items:center;gap:8px;margin-top:13px;padding-top:12px;border-top:1px solid var(--line-2)}
+.form__cnt{font-size:12px;color:var(--ink-3);margin-right:auto}
+.form__cnt b{color:var(--brand)}
+
+/* подключение */
+.auth{display:flex;flex-direction:column;gap:10px}
+.auth--on{flex-direction:row;align-items:center;gap:9px;font-size:13px}
+.auth__dot{width:8px;height:8px;border-radius:50%;background:var(--good);flex:none}
+.auth--on .btn{margin-left:auto}
+.auth__head{font-size:13.5px;font-weight:600}
+.auth__steps{margin:0;padding-left:19px;font-size:12.5px;color:var(--ink-2);line-height:1.75}
+.auth__steps a{color:var(--brand)}
+.auth__row{display:flex;gap:8px;max-width:520px}
+.auth__row .inp{flex:1}
+.auth__row .btn{flex:none}
+.auth__note{font-size:11.5px;color:var(--ink-3)}
+
+/* история */
+.hist{display:flex;flex-direction:column}
+.hist__row{display:flex;align-items:baseline;gap:12px;padding:8px 0;border-bottom:1px solid var(--line-2);font-size:13px}
+.hist__row:last-child{border-bottom:none}
+.hist__when{color:var(--ink-3);font-size:12px;width:150px;flex:none}
+.hist__msg{flex:1;min-width:0}
+.hist__lnk{color:var(--ink-3);font-size:12px;text-decoration:none;flex:none}
+.hist__lnk:hover{color:var(--brand)}
+
+/* строки правки */
+.edit.is-dirty td{background:rgba(50,141,255,.06)}
+.edit.is-gone td{opacity:.4;text-decoration:line-through}
+.iconx{width:26px;height:26px;border-radius:7px;color:var(--ink-3);font-size:13px}
+.iconx:hover{background:var(--line-2);color:var(--bad)}
+
+/* уведомление */
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:95;max-width:min(92vw,460px);
+  background:var(--ink);color:#fff;padding:11px 16px;border-radius:10px;font-size:13px;
+  box-shadow:0 6px 24px rgba(0,0,0,.22);text-align:center}
+html[data-theme="dark"] .toast{background:#0d1216;border:1px solid var(--line)}
+
 /* ---------- tooltip ---------- */
 .tip{position:fixed;z-index:90;pointer-events:none;background:var(--ink);color:#fff;border-radius:8px;
   padding:7px 10px;font-size:12px;line-height:1.5;box-shadow:0 4px 18px rgba(0,0,0,.22);white-space:nowrap}
@@ -267,6 +321,13 @@ html[data-theme="dark"] .tip{background:#0d1216;border:1px solid var(--line)}
   .tbl thead th.tbl__name{z-index:3}
   .tbl__offer td:first-child{padding-left:14px}
   .tablewrap{margin:0 -13px;padding:0 13px}
+  .auth__row{flex-direction:column}
+  .hist__row{flex-wrap:wrap;gap:3px 10px}
+  .hist__when{width:auto;order:2;flex:1}
+  .hist__msg{order:1;width:100%}
+  .hist__lnk{order:3}
+  .form__foot{flex-wrap:wrap}
+  .form__cnt{width:100%;margin-bottom:6px}
   .goal__legend{gap:6px 12px}
   .goal__period{width:100%;order:3}
   .kpi__name{white-space:normal}

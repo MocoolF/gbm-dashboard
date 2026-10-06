@@ -21,8 +21,19 @@
       "color": "#eda100"
     }
   ],
-  "niches": [],
-  "offers": [],
+  "niches": [
+    {
+      "id": "stroymat",
+      "name": "Стройматериалы"
+    }
+  ],
+  "offers": [
+    {
+      "id": "stroymat_1",
+      "niche": "stroymat",
+      "name": "Оффер 1"
+    }
+  ],
   "stages": [
     {
       "id": "lead",
