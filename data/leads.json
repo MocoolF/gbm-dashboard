@@ -85,12 +85,12 @@
   "name": "Заявка 5",
   "qual": true,
   "qual_date": "2026-10-06",
-  "zoom_set_date": null,
-  "zoom_date": null,
+  "zoom_set_date": "2026-10-06",
+  "zoom_date": "2026-10-06",
   "offer_date": null,
   "won_date": null,
   "amount": 0,
-  "status": "qual",
+  "status": "zoom",
   "lost_reason": null,
   "note": ""
  }
