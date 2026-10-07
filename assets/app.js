@@ -27,6 +27,7 @@ const plural = (n, f) => { const m = n % 10, h = n % 100;
   return f[(m === 1 && h !== 11) ? 0 : (m >= 2 && m <= 4 && (h < 10 || h >= 20)) ? 1 : 2]; };
 
 const TODAY = iso(new Date());
+const weekStart = () => addD(TODAY, -((parse(TODAY).getDay() + 6) % 7));   // понедельник текущей недели
 
 /* ===================== state ===================== */
 const S = {
@@ -577,6 +578,7 @@ function niceMax(v) {
 const PRESETS = [
   ['today','Сегодня',          () => [TODAY, TODAY]],
   ['yday','Вчера',             () => [addD(TODAY,-1), addD(TODAY,-1)]],
+  ['week','Текущая неделя',    () => [weekStart(), TODAY]],
   ['d7','Последние 7 дней',    () => [addD(TODAY,-6), TODAY]],
   ['d30','Последние 30 дней',  () => [addD(TODAY,-29), TODAY]],
   ['month','Текущий месяц',    () => [monStart(TODAY), TODAY]],
@@ -599,10 +601,27 @@ function initDate() {
   applyDateLabel();
 }
 
+const QUICK = [['today','Сегодня'], ['week','Неделя'], ['month','Месяц']];
+
+function renderQuick() {
+  const box = $('#quick'); if (!box) return;
+  box.innerHTML = '';
+  QUICK.forEach(([id, name]) => {
+    const b = el('button','quick__b' + (S.preset === id ? ' is-on' : ''), name);
+    b.onclick = () => {
+      const [a, z] = PRESETS.find(p => p[0] === id)[2]();
+      S.from = a; S.to = z; S.preset = id;
+      closeAll(); applyDateLabel(); render();
+    };
+    box.append(b);
+  });
+}
+
 function applyDateLabel() {
   const p = PRESETS.find(p => p[0] === S.preset);
   $('#dateLabel').textContent = S.preset && p && S.preset !== 'custom'
     ? p[1] : `${short(S.from)} — ${short(S.to)}`;
+  renderQuick();
 }
 
 function drawDate() {
