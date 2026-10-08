@@ -104,12 +104,12 @@
   "name": "",
   "qual": true,
   "qual_date": "2026-10-07",
-  "zoom_set_date": null,
-  "zoom_date": null,
+  "zoom_set_date": "2026-10-07",
+  "zoom_date": "2026-10-07",
   "offer_date": null,
   "won_date": null,
   "amount": 0,
-  "status": "qual",
+  "status": "zoom",
   "lost_reason": null,
   "note": ""
  }
