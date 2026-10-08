@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="robots" content="noindex, nofollow">
 <title>GBM Studio — Дашборд</title>
-<link rel="stylesheet" href="assets/style.css?v=6944c0f0">
+<link rel="stylesheet" href="assets/style.css?v=6164e295">
 </head>
 <body>
 
@@ -28,6 +28,7 @@
     <nav class="tabs" id="tabs">
       <button class="tab is-active" data-tab="summary">Сводка</button>
       <button class="tab" data-tab="calls">Дозвоны</button>
+      <button class="tab" data-tab="out">Рассылки</button>
       <button class="tab" data-tab="data">Данные</button>
     </nav>
     <button class="icon-btn" id="themeBtn" title="Тема" aria-label="Переключить тему">
@@ -115,7 +116,7 @@
 
   <footer class="foot">
     Данные вносятся вручную в <code>data/leads.json</code> и <code>data/spend.json</code>
-    · <span id="build">сборка 07.10 19:15 · 6944c0f0</span>
+    · <span id="build">сборка 08.10 16:03 · 6164e295</span>
   </footer>
 </main>
 
@@ -136,17 +137,49 @@
   </footer>
 </main>
 
+<main class="wrap" id="view-out" hidden>
+
+  <section class="top" id="outTop"></section>
+
+  <section class="card">
+    <div class="card__head">
+      <h2 class="card__title">Типы рассылок</h2>
+      <p class="card__hint">Контакты и ответы — за выбранный период. Заявки и дальше — по дате заявки</p>
+    </div>
+    <div class="tablewrap"><table class="tbl" id="outTbl"></table></div>
+  </section>
+
+  <section class="card">
+    <div class="card__head">
+      <h2 class="card__title">Распределение по времени</h2>
+      <p class="card__hint" id="outDyn"></p>
+    </div>
+    <div class="charts" id="outCharts"></div>
+  </section>
+
+  <footer class="foot">
+    Контакты и ответы ведутся в <code>data/outreach.json</code>, заявки — обычные лиды канала «Холодные рассылки»
+  </footer>
+</main>
+
 <main class="wrap" id="view-data" hidden>
 
   <section class="card" id="authCard"></section>
 
-  <section class="grid2" id="formsBox">
+  <section class="grid3" id="formsBox">
     <div class="card">
       <div class="card__head">
         <h2 class="card__title">Добавить заявки</h2>
         <p class="card__hint">Для дозвонов заявка — это нажатие «1»</p>
       </div>
       <form class="form" id="leadForm"></form>
+    </div>
+    <div class="card">
+      <div class="card__head">
+        <h2 class="card__title">Рассылка за день</h2>
+        <p class="card__hint">Сколько контактов сделано и сколько ответили</p>
+      </div>
+      <form class="form" id="outForm"></form>
     </div>
     <div class="card">
       <div class="card__head">
@@ -177,6 +210,6 @@
 
 <div class="tip" id="tip" hidden></div>
 
-<script src="assets/app.js?v=6944c0f0"></script>
+<script src="assets/app.js?v=6164e295"></script>
 </body>
 </html>

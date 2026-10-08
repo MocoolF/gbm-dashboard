@@ -31,7 +31,7 @@ const weekStart = () => addD(TODAY, -((parse(TODAY).getDay() + 6) % 7));   // п
 
 /* ===================== state ===================== */
 const S = {
-  leads: [], spend: [], channels: [], stages: [], goals: {}, niches: [], offers: [],
+  leads: [], spend: [], outreach: [], channels: [], stages: [], goals: {}, niches: [], offers: [], otypes: [],
   from: monStart(TODAY), to: TODAY, preset: 'month', sel: new Set(),
   tab: 'summary', cols: null, sort: { key:'spend', dir:-1 }, collapsed: new Set(),
   pending: new Map(), removed: new Set(), nf: {}
@@ -54,13 +54,14 @@ const COLS = [
 /* ===================== load ===================== */
 async function boot() {
   try {
-    const [cfg, leads, spend, goals] = await Promise.all(
-      ['data/channels.json','data/leads.json','data/spend.json','data/goals.json']
+    const [cfg, leads, spend, goals, outreach] = await Promise.all(
+      ['data/channels.json','data/leads.json','data/spend.json','data/goals.json','data/outreach.json']
         .map(u => fetch(u, {cache:'no-store'}).then(r => { if (!r.ok) throw new Error(u); return r.json(); }))
     );
     S.channels = cfg.channels; S.stages = cfg.stages;
     S.niches = cfg.niches || []; S.offers = cfg.offers || [];
-    S.leads = leads; S.spend = spend; S.goals = goals;
+    S.leads = leads; S.spend = spend; S.goals = goals; S.outreach = outreach;
+    S.otypes = cfg.outreach_types || [];
     S.sel = new Set(S.channels.map(c => c.id));
   } catch (e) {
     $('#view-summary').innerHTML = `<div class="card"><div class="empty">Не удалось загрузить данные: ${e.message}<br><br>
@@ -138,6 +139,7 @@ function initTabs() {
     $$('#tabs .tab').forEach(x => x.classList.toggle('is-active', x === b));
     $('#view-summary').hidden = S.tab !== 'summary';
     $('#view-calls').hidden   = S.tab !== 'calls';
+    $('#view-out').hidden     = S.tab !== 'out';
     $('#view-data').hidden    = S.tab !== 'data';
     $('#chanCtrl').hidden = S.tab !== 'summary';
     $('#colCtrl').hidden  = S.tab !== 'calls';
@@ -148,6 +150,7 @@ function initTabs() {
 
 function render() {
   if (S.tab === 'calls') return renderCalls();
+  if (S.tab === 'out')   return renderOutreach();
   if (S.tab === 'data')  return renderData();
   const cur  = slice(S.from, S.to);
   const len  = daysIn(S.from, S.to);
@@ -734,6 +737,187 @@ function drawChannels() {
   pop.append(foot);
 }
 
+/* ===================== лист «Рассылки» ===================== */
+function outRows(from, to) {
+  const blank = () => ({ contacts:0, replies:0, leads:0, quals:0, zooms:0 });
+  const agg = new Map();
+  S.otypes.forEach(t => agg.set(t.id, blank()));
+  S.outreach.forEach(o => {
+    if (!inRange(o.date, from, to)) return;
+    const m = agg.get(o.type); if (!m) return;
+    m.contacts += o.contacts || 0; m.replies += o.replies || 0;
+  });
+  S.leads.forEach(l => {
+    if (l.channel !== 'cold' || !inRange(l.date, from, to)) return;
+    const m = agg.get(l.otype); if (!m) return;
+    m.leads++;
+    if (l.qual_date) m.quals++;
+    if (l.zoom_date) m.zooms++;
+  });
+  const rows = S.otypes.map(t => ({ id:t.id, name:t.name, color:t.color, ...agg.get(t.id) }));
+  const tot = blank();
+  rows.forEach(r => ['contacts','replies','leads','quals','zooms'].forEach(k => tot[k] += r[k]));
+  return { rows, total: tot };
+}
+
+const OUTCOLS = [
+  { k:'contacts', n:'Контакты' }, { k:'replies', n:'Ответы' }, { k:'leads', n:'Заявки' },
+  { k:'quals', n:'Квал' }, { k:'zooms', n:'Зумы' }
+];
+
+function renderOutreach() {
+  const { rows, total } = outRows(S.from, S.to);
+  const len = daysIn(S.from, S.to);
+  const pTo = addD(S.from, -1), pFrom = addD(pTo, -(len - 1));
+  const prev = outRows(pFrom, pTo).total;
+
+  const tiles = [
+    { n:'Контакты', v: nf(total.contacts), raw:total.contacts, prev:prev.contacts },
+    { n:'Ответы',   v: nf(total.replies),  raw:total.replies,  prev:prev.replies },
+    { n:'Заявки',   v: nf(total.leads),    raw:total.leads,    prev:prev.leads },
+    { n:'Квал',     v: nf(total.quals),    raw:total.quals,    prev:prev.quals },
+    { n:'Зумы',     v: nf(total.zooms),    raw:total.zooms,    prev:prev.zooms },
+    { n:'Ответов на контакт', v: pct(total.replies, total.contacts) + '%',
+      raw: pct(total.replies, total.contacts), prev: pct(prev.replies, prev.contacts) },
+    { n:'Заявок из ответов',  v: pct(total.leads, total.replies) + '%',
+      raw: pct(total.leads, total.replies), prev: pct(prev.leads, prev.replies) }
+  ];
+  const top = $('#outTop'); top.className = 'kpis kpis--7'; top.innerHTML = '';
+  tiles.forEach(it => {
+    const d = it.prev > 0 ? (it.raw - it.prev) / it.prev * 100 : (it.raw > 0 ? 100 : 0);
+    const cls = Math.abs(d) < 0.5 ? 'flat' : d > 0 ? 'up' : 'down';
+    const arrow = Math.abs(d) < 0.5 ? '' : d > 0 ? '↑' : '↓';
+    top.append(el('div','kpi',`
+      <div class="kpi__name">${it.n}</div>
+      <div class="kpi__val">${it.v}</div>
+      <div class="kpi__sub"><span class="delta ${cls}">${arrow}${Math.abs(Math.round(d))}%</span></div>`));
+  });
+
+  /* таблица типов */
+  const t = $('#outTbl'); t.innerHTML = '';
+  const hr = el('tr'); hr.append(el('th','tbl__name','Тип рассылки'));
+  OUTCOLS.forEach(c => hr.append(el('th','tbl__num', c.n)));
+  hr.append(el('th','tbl__num','Ответ, %'), el('th','tbl__num','Заявка, %'));
+  t.append(el('thead','', '')); t.querySelector('thead').append(hr);
+  const tb = el('tbody');
+  rows.forEach(r => {
+    const tr = el('tr');
+    tr.append(el('td','tbl__name',
+      `<span class="tbl__t"><span class="chan__dot" style="background:${r.color};display:inline-block;margin-right:8px"></span>${r.name}</span>`));
+    OUTCOLS.forEach(c => tr.append(el('td','tbl__num', nf(r[c.k]))));
+    tr.append(el('td','tbl__num', pct(r.replies, r.contacts) + '%'));
+    tr.append(el('td','tbl__num', pct(r.leads, r.replies) + '%'));
+    tb.append(tr);
+  });
+  t.append(tb);
+  const fr = el('tr'); fr.append(el('td','tbl__name','Итого'));
+  OUTCOLS.forEach(c => fr.append(el('td','tbl__num', nf(total[c.k]))));
+  fr.append(el('td','tbl__num', pct(total.replies, total.contacts) + '%'));
+  fr.append(el('td','tbl__num', pct(total.leads, total.replies) + '%'));
+  const tf = el('tfoot'); tf.append(fr); t.append(tf);
+
+  /* графики по времени, две серии */
+  const n = daysIn(S.from, S.to);
+  const step = n <= 45 ? 'day' : n <= 200 ? 'week' : 'month';
+  $('#outDyn').textContent = `${short(S.from)} — ${short(S.to)} · по ${{day:'дням',week:'неделям',month:'месяцам'}[step]}`;
+  const box = $('#outCharts'); box.innerHTML = '';
+  [['contacts','Контакты'], ['replies','Ответы'], ['leads','Заявки'], ['quals','Квал. заявки'], ['zooms','Зумы']].forEach(([kind, title]) => {
+    const series = S.otypes.map(t2 => ({
+      name: t2.name, color: t2.color, rows: bin(outSeries(S.from, S.to, kind, t2.id), step)
+    }));
+    const sum = series.reduce((a,s) => a + s.rows.reduce((x,r) => x + r.v, 0), 0);
+    const w = el('div','ch', `<div class="ch__head"><span class="ch__t">${title}</span>
+      <span class="ch__sum">всего ${nf(sum)}</span></div>`);
+    w.append(legend(series));
+    w.append(multiChart(series, step));
+    box.append(w);
+  });
+}
+
+function outSeries(from, to, kind, type) {
+  const out = new Map();
+  for (let d = from; d <= to; d = addD(d, 1)) out.set(d, 0);
+  if (kind === 'contacts' || kind === 'replies') {
+    S.outreach.forEach(o => { if (o.type === type && out.has(o.date)) out.set(o.date, out.get(o.date) + (o[kind] || 0)); });
+  } else {
+    const need = kind === 'quals' ? 'qual_date' : kind === 'zooms' ? 'zoom_date' : null;
+    S.leads.forEach(l => {
+      if (l.channel !== 'cold' || l.otype !== type) return;
+      if (need && !l[need]) return;
+      if (out.has(l.date)) out.set(l.date, out.get(l.date) + 1);
+    });
+  }
+  return [...out].map(([date, v]) => ({ date, v }));
+}
+
+function legend(series) {
+  const box = el('div','lgnd');
+  series.forEach(s => box.append(el('span','lgnd__i',
+    `<span class="lgnd__d" style="background:${s.color}"></span>${s.name}`)));
+  return box;
+}
+
+function multiChart(series, step) {
+  const W = 520, H = 150, L = 42, R = 10, T = 12, B = 24;
+  const iw = W - L - R, ih = H - T - B;
+  const svg = mk('svg', { viewBox:`0 0 ${W} ${H}`, class:'ch__svg', role:'img' });
+  const len = series[0]?.rows.length || 0;
+  const max = Math.max(1, ...series.flatMap(s => s.rows.map(r => r.v)));
+  const nice = niceMax(max);
+  const x = i => L + (len === 1 ? iw/2 : i * iw / (len - 1));
+  const y = v => T + ih - (v / nice) * ih;
+
+  for (let i = 0; i <= 2; i++) {
+    const v = nice * i / 2, yy = y(v);
+    svg.append(mk('line', { x1:L, x2:W-R, y1:yy, y2:yy, stroke:'var(--line-2)', 'stroke-width':1 }));
+    const tx = mk('text', { x:L-7, y:yy+3.5, 'text-anchor':'end', 'font-size':10, fill:'var(--ink-3)' });
+    tx.textContent = Math.round(v); svg.append(tx);
+  }
+  series.forEach(s => {
+    const pts = s.rows.map((r,i) => `${x(i).toFixed(1)},${y(r.v).toFixed(1)}`).join(' ');
+    svg.append(mk('polyline', { points:pts, fill:'none', stroke:s.color, 'stroke-width':2,
+      'stroke-linejoin':'round', 'stroke-linecap':'round' }));
+  });
+  const everyN = Math.ceil(len / 6);
+  (series[0]?.rows || []).forEach((r,i) => {
+    if (i % everyN === 0 || i === len - 1) {
+      const tx = mk('text', { x:x(i), y:H-7, 'text-anchor':'middle', 'font-size':10, fill:'var(--ink-3)' });
+      tx.textContent = step === 'day' ? short(r.date) : r.label; svg.append(tx);
+    }
+  });
+
+  const cross = mk('line', { y1:T, y2:T+ih, stroke:'var(--ink-3)', 'stroke-width':1, 'stroke-dasharray':'3 3', opacity:0 });
+  svg.append(cross);
+  const dots = series.map(s => { const c = mk('circle', { r:4.5, fill:s.color, stroke:'var(--surface)', 'stroke-width':2, opacity:0 }); svg.append(c); return c; });
+
+  const tip = $('#tip');
+  const move = ev => {
+    const b = svg.getBoundingClientRect();
+    const px = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - b.left) / b.width * W;
+    let i = Math.round((px - L) / (iw / Math.max(len - 1, 1)));
+    i = Math.max(0, Math.min(len - 1, i));
+    cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('opacity', .6);
+    series.forEach((s, k) => {
+      dots[k].setAttribute('cx', x(i)); dots[k].setAttribute('cy', y(s.rows[i].v)); dots[k].setAttribute('opacity', 1);
+    });
+    tip.hidden = false;
+    const head = step === 'day' ? long(series[0].rows[i].date) : series[0].rows[i].label;
+    tip.innerHTML = `<div class="tip__d">${head}</div>` + series.map(s =>
+      `<div><span class="tip__dot" style="background:${s.color}"></span>${s.name}: <b>${nf(s.rows[i].v)}</b></div>`).join('');
+    const cx = (ev.touches ? ev.touches[0].clientX : ev.clientX), cy = (ev.touches ? ev.touches[0].clientY : ev.clientY);
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = Math.max(8, Math.min(innerWidth - tw - 8, cx - tw/2)) + 'px';
+    tip.style.top  = Math.max(8, cy - th - 14) + 'px';
+  };
+  const out = () => { cross.setAttribute('opacity',0); dots.forEach(d => d.setAttribute('opacity',0)); tip.hidden = true; };
+  svg.addEventListener('mousemove', move);
+  svg.addEventListener('mouseleave', out);
+  svg.addEventListener('touchstart', move, {passive:true});
+  svg.addEventListener('touchmove', move, {passive:true});
+  svg.addEventListener('touchend', out);
+  return svg;
+}
+
 /* ===================== GitHub как хранилище ===================== */
 const GH = {
   get token() { try { return localStorage.getItem('gbm-gh-token') || ''; } catch { return ''; } },
@@ -853,6 +1037,7 @@ function fieldSel(id, label, opts, val) {
     <select class="sel" id="${id}">${opts.map(o => `<option value="${o[0]}"${o[0]===val?' selected':''}>${o[1]}</option>`).join('')}</select></label>`;
 }
 function renderForms() {
+  renderOutForm();
   const ch = S.channels.map(c => [c.id, c.name]);
   ['leadForm','spendForm'].forEach(fid => {
     const isLead = fid === 'leadForm';
@@ -862,6 +1047,8 @@ function renderForms() {
     const offs = S.offers.filter(o => o.niche === st.niche);
     if (!offs.some(o => o.id === st.offer)) st.offer = offs[0]?.id || '';
     const isCalls = st.channel === 'calls';
+    const isCold  = st.channel === 'cold';
+    if (isCold && !S.otypes.some(t => t.id === st.otype)) st.otype = S.otypes[0]?.id || '';
 
     f.innerHTML = `
       <label class="fld"><span class="fld__l">Дата</span>
@@ -882,6 +1069,7 @@ function renderForms() {
             : `<select class="sel" id="${fid}_o">${offs.map(o => `<option value="${o.id}"${o.id===st.offer?' selected':''}>${o.name}</option>`).join('')}</select>`}
           <button type="button" class="btn btn--icon" id="${fid}_otog" title="Новый оффер">${st.newOffer && offs.length ? '×' : '+'}</button>
         </div></label>` : ''}
+      ${isCold ? fieldSel(fid+'_ot','Тип рассылки', S.otypes.map(t => [t.id, t.name]), st.otype) : ''}
       <label class="fld"><span class="fld__l">${isLead ? 'Сколько заявок' : 'Сумма, ₽'}</span>
         <input class="inp" type="number" id="${fid}_v" min="${isLead?1:0}" step="${isLead?1:1}" value="${isLead?1:''}" placeholder="${isLead?'':'1204'}"></label>
       <button type="submit" class="btn btn--primary btn--wide">${isLead ? 'Добавить заявки' : 'Добавить расход'}</button>`;
@@ -892,8 +1080,50 @@ function renderForms() {
     if (ot) ot.onclick = () => { st.newOffer = !st.newOffer; renderForms(); };
     const ns = $(`#${fid}_n`); if (ns) ns.onchange = e => { st.niche = e.target.value; st.offer=''; renderForms(); };
     const os = $(`#${fid}_o`); if (os) os.onchange = e => { st.offer = e.target.value; };
+    const ots = $(`#${fid}_ot`); if (ots) ots.onchange = e => { st.otype = e.target.value; };
     f.onsubmit = e => { e.preventDefault(); isLead ? submitLeads(fid, st) : submitSpend(fid, st); };
   });
+}
+
+function renderOutForm() {
+  const f = $('#outForm'); if (!f) return;
+  const st = S.nf.outForm = S.nf.outForm || { type: S.otypes[0]?.id || '' };
+  if (!S.otypes.some(t => t.id === st.type)) st.type = S.otypes[0]?.id || '';
+  f.innerHTML = `
+    <label class="fld"><span class="fld__l">Дата</span>
+      <input class="inp" type="date" id="of_date" value="${TODAY}" max="${TODAY}"></label>
+    ${fieldSel('of_type','Тип рассылки', S.otypes.map(t => [t.id, t.name]), st.type)}
+    <label class="fld"><span class="fld__l">Контакты</span>
+      <input class="inp" type="number" id="of_c" min="0" placeholder="300"></label>
+    <label class="fld"><span class="fld__l">Ответы</span>
+      <input class="inp" type="number" id="of_r" min="0" placeholder="12"></label>
+    <button type="submit" class="btn btn--primary btn--wide">Записать рассылку</button>`;
+  $('#of_type').onchange = e => { st.type = e.target.value; };
+  f.onsubmit = e => { e.preventDefault(); submitOutreach(st); };
+}
+
+async function submitOutreach(st) {
+  if (!requireToken()) return;
+  const btn = $('#outForm button[type=submit]');
+  try {
+    const date = $('#of_date').value;
+    const contacts = Math.round(parseFloat($('#of_c').value) || 0);
+    const replies  = Math.round(parseFloat($('#of_r').value) || 0);
+    if (!date) throw new Error('Укажи дату');
+    if (!contacts && !replies) throw new Error('Заполни контакты или ответы');
+    if (replies > contacts && contacts) throw new Error('Ответов больше, чем контактов — проверь');
+    busy(btn, true);
+    const name = S.otypes.find(t => t.id === st.type)?.name || st.type;
+    await ghSave('data/outreach.json', d => {
+      const i = d.findIndex(o => o.date === date && o.type === st.type);
+      const rec = { date, type: st.type, contacts, replies };
+      if (i >= 0) d[i] = rec; else d.push(rec);
+      return d;
+    }, `Рассылка · ${name} · ${nf(contacts)} контактов, ${nf(replies)} ответов · ${short(date)}`);
+    await reload();
+    alertBox(`Записано: ${name} — ${contacts} контактов, ${replies} ответов`);
+  } catch (e) { alertBox('Не сохранилось: ' + e.message); }
+  finally { busy(btn, false); }
 }
 
 /* разобрать ниша/оффер из формы, при необходимости завести новые */
@@ -941,11 +1171,12 @@ async function submitLeads(fid, st) {
     const mk = nextLeadId();
     const add = Array.from({length:n}, (_, i) => ({
       id: mk(i + 1), date, channel: st.channel, service: null,
-      niche: no.niche, offer: no.offer, name: '',
+      niche: no.niche, offer: no.offer, otype: st.channel === 'cold' ? st.otype : null, name: '',
       qual:false, qual_date:null, zoom_set_date:null, zoom_date:null,
       offer_date:null, won_date:null, amount:0, status:'new', lost_reason:null, note:''
     }));
     const where = st.channel === 'calls' ? `${no.nicheName} / ${no.offerName}`
+      : st.channel === 'cold' ? `рассылки · ${S.otypes.find(t => t.id === st.otype)?.name || ''}`
       : S.channels.find(c => c.id === st.channel).name;
     await ghSave('data/leads.json', d => d.concat(add), `+${n} ${plural(n,['заявка','заявки','заявок'])} · ${where} · ${short(date)}`);
     await reload();
@@ -1096,14 +1327,14 @@ async function renderHistory() {
 /* перечитать данные после записи */
 async function reload() {
   try {
-    const [cfg, leads, spend, goals] = await Promise.all(
-      ['data/channels.json','data/leads.json','data/spend.json','data/goals.json'].map(async f => {
+    const [cfg, leads, spend, goals, outreach] = await Promise.all(
+      ['data/channels.json','data/leads.json','data/spend.json','data/goals.json','data/outreach.json'].map(async f => {
         if (GH.token) return (await ghRead(f)).data;
         return fetch(f + '?_=' + Date.now(), {cache:'no-store'}).then(r => r.json());
       }));
     S.channels = cfg.channels; S.stages = cfg.stages;
-    S.niches = cfg.niches || []; S.offers = cfg.offers || [];
-    S.leads = leads; S.spend = spend; S.goals = goals;
+    S.niches = cfg.niches || []; S.offers = cfg.offers || []; S.otypes = cfg.outreach_types || [];
+    S.leads = leads; S.spend = spend; S.goals = goals; S.outreach = outreach;
     S.sel = new Set(S.channels.map(c => c.id));
     if (S.tab === 'data') { renderForms(); renderEdit(); renderHistory(); } else render();
   } catch (e) { alertBox('Не удалось обновить данные: ' + e.message); }
