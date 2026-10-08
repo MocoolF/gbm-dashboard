@@ -242,14 +242,14 @@
   "offer": null,
   "otype": null,
   "name": "",
-  "qual": false,
-  "qual_date": null,
+  "qual": true,
+  "qual_date": "2026-10-08",
   "zoom_set_date": null,
   "zoom_date": null,
   "offer_date": null,
   "won_date": null,
   "amount": 0,
-  "status": "new",
+  "status": "qual",
   "lost_reason": null,
   "note": ""
  }
