@@ -252,25 +252,5 @@
   "status": "zoom",
   "lost_reason": null,
   "note": ""
- },
- {
-  "id": "L0015",
-  "date": "2026-10-13",
-  "channel": "tg",
-  "service": null,
-  "niche": null,
-  "offer": null,
-  "otype": null,
-  "name": "",
-  "qual": true,
-  "qual_date": "2026-10-13",
-  "zoom_set_date": "2026-10-13",
-  "zoom_date": "2026-10-13",
-  "offer_date": null,
-  "won_date": null,
-  "amount": 0,
-  "status": "zoom",
-  "lost_reason": null,
-  "note": ""
  }
 ]
