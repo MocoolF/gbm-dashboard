@@ -4,5 +4,11 @@
   "type": "admin",
   "contacts": 42,
   "replies": 3
+ },
+ {
+  "date": "2026-10-13",
+  "type": "lpr",
+  "contacts": 1,
+  "replies": 0
  }
 ]
