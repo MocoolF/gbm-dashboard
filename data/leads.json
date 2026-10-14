@@ -412,5 +412,25 @@
   "status": "new",
   "lost_reason": null,
   "note": ""
+ },
+ {
+  "id": "L0023",
+  "date": "2026-10-14",
+  "channel": "calls",
+  "service": null,
+  "niche": "stroymat",
+  "offer": "stroymat_ofer_3",
+  "otype": null,
+  "name": "",
+  "qual": false,
+  "qual_date": null,
+  "zoom_set_date": null,
+  "zoom_date": null,
+  "offer_date": null,
+  "won_date": null,
+  "amount": 0,
+  "status": "new",
+  "lost_reason": null,
+  "note": ""
  }
 ]
