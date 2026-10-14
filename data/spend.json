@@ -10,5 +10,12 @@
   "date": "2026-10-13",
   "channel": "vk",
   "amount": 672
+ },
+ {
+  "date": "2026-10-14",
+  "channel": "calls",
+  "amount": 543,
+  "niche": "stroymat",
+  "offer": "stroymat_ofer_3"
  }
 ]
