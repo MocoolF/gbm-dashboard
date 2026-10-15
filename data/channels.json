@@ -25,6 +25,10 @@
   {
    "id": "stroymat",
    "name": "Стройматериалы"
+  },
+  {
+   "id": "fitnes",
+   "name": "фитнес"
   }
  ],
  "offers": [
@@ -37,6 +41,11 @@
    "id": "stroymat_ofer_3",
    "niche": "stroymat",
    "name": "офер 3"
+  },
+  {
+   "id": "fitnes_korotkiy1",
+   "niche": "fitnes",
+   "name": "короткий1"
   }
  ],
  "stages": [
