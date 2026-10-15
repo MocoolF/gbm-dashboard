@@ -22,5 +22,12 @@
   "date": "2026-10-14",
   "channel": "vk",
   "amount": 1800
+ },
+ {
+  "date": "2026-10-15",
+  "channel": "calls",
+  "amount": 651,
+  "niche": "fitnes",
+  "offer": "fitnes_korotkiy1"
  }
 ]
