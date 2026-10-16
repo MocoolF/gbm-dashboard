@@ -29,6 +29,10 @@
     {
       "id": "fitnes",
       "name": "фитнес"
+    },
+    {
+      "id": "fitnes_okvedy_artema",
+      "name": "ФИТНЕС (ОКВЭДЫ АРТЕМА)"
     }
   ],
   "offers": [
@@ -73,5 +77,12 @@
       "color": "#328DFF"
     }
   ],
-  "scripts": []
+  "scripts": [
+    {
+      "id": "fitnes_okvedy_artema_lpr_aud",
+      "niche": "fitnes_okvedy_artema",
+      "type": "lpr",
+      "name": "АУДИТ САЙТА И КАРТ"
+    }
+  ]
 }
