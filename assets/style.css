@@ -287,6 +287,10 @@ html[data-theme="dark"] .toast{background:#0d1216;border:1px solid var(--line)}
   border-radius:50%;background:var(--brand)}
 .cell--edit .inp--sm{max-width:90px}
 
+.addrow{display:flex;gap:7px;flex:1;align-items:center;flex-wrap:wrap}
+.tbl__offer.is-empty td{opacity:.5}
+.tbl__offer.is-empty:hover td{opacity:1}
+
 /* ---------- tooltip ---------- */
 .tip{position:fixed;z-index:90;pointer-events:none;background:var(--ink);color:#fff;border-radius:8px;
   padding:7px 10px;font-size:12px;line-height:1.5;box-shadow:0 4px 18px rgba(0,0,0,.22);white-space:nowrap}
@@ -359,6 +363,8 @@ html[data-theme="dark"] .tip{background:#0d1216;border:1px solid var(--line)}
   .hist__msg{order:1;width:100%}
   .hist__lnk{order:3}
   .form__foot{flex-wrap:wrap}
+  .addrow{flex-direction:column;align-items:stretch}
+  .addrow>*{width:100%}
   .form__cnt{width:100%;margin-bottom:6px}
   .goal__legend{gap:6px 12px}
   .goal__period{width:100%;order:3}

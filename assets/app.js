@@ -396,7 +396,7 @@ function renderCalls() {
     tb.append(tr);
     if (!open) return;
     [...n.offers].sort((a,b) => (a[S.sort.key] - b[S.sort.key]) * S.sort.dir).forEach(o => {
-      const r = el('tr','tbl__offer');
+      const r = el('tr','tbl__offer' + (NUMK.every(f => !s[f]) ? ' is-empty' : ''));
       r.append(el('td','tbl__name', `<span class="tbl__t" title="${o.name}">${o.name}</span>`));
       cols.forEach(c => r.append(el('td','tbl__num', c.f(o[c.k]))));
       tb.append(r);
@@ -798,7 +798,7 @@ function withConv(m) {
   return { ...m, cr: pct(m.replies, m.contacts), ca: pct(m.audits, m.replies) };
 }
 
-function outRows(from, to) {
+function outRows(from, to, showAll) {
   const blank = () => ({ contacts:0, replies:0, audits:0, quals:0, zooms:0 });
   const bySc = new Map();                       // scriptId (или '') -> метрики
   S.outreach.forEach(o => {
@@ -818,7 +818,7 @@ function outRows(from, to) {
   S.niches.forEach(n => {
     const scripts = S.scripts.filter(s => s.niche === n.id)
       .map(s => ({ id:s.id, name:s.name, type:s.type, ...withConv(bySc.get(s.id) || blank()) }))
-      .filter(s => NUMK.some(f => s[f] > 0));           // показываем только то, что работало
+      .filter(s => showAll || NUMK.some(f => s[f] > 0));   // за период — только работавшее, за день — все
     if (scripts.length) push(n.id, n.name, scripts);
   });
   const orphan = bySc.get('');
@@ -833,7 +833,8 @@ function outRows(from, to) {
 }
 
 function renderOutreach() {
-  const { groups, total } = outRows(S.from, S.to);
+  const oneDay = S.from === S.to;
+  const { groups, total } = outRows(S.from, S.to, oneDay);
   const [pFrom, pTo] = prevRange();
   const prev = outRows(pFrom, pTo).total;
 
@@ -857,10 +858,9 @@ function renderOutreach() {
       <div class="kpi__sub"><span class="delta ${cls}">${arrow}${Math.abs(Math.round(d))}%</span></div>`));
   });
 
-  const oneDay = S.from === S.to;
   $('#outHint').innerHTML = oneDay
-    ? `Правки сохраняются сразу — нажми на любое число за <b>${long(S.from)}</b>`
-    : 'Показано только то, что работало за период. Чтобы править числа, выбери один день — например, кнопкой «Сегодня»';
+    ? `Режим ввода за <b>${long(S.from)}</b> — нажми на любое число, чтобы изменить. Показаны все скрипты`
+    : 'Показано только то, что работало за период. Чтобы вносить и править числа, выбери один день — кнопкой «Сегодня»';
 
   const t = $('#outTbl'); t.innerHTML = '';
   const thead = el('thead'); const hr = el('tr');
@@ -884,16 +884,16 @@ function renderOutreach() {
     tb.append(tr);
     if (!open) return;
     g.scripts.forEach(s => {
-      const r = el('tr','tbl__offer');
+      const r = el('tr','tbl__offer' + (NUMK.every(f => !s[f]) ? ' is-empty' : ''));
       r.append(el('td','tbl__name',
         `<span class="tbl__t" title="${s.name} · ${typeName(s.type)}">
            <span class="chan__dot" style="background:${typeColor(s.type)};display:inline-block;margin-right:7px"></span>${s.name}</span>`));
       OUTCOLS.forEach(c => {
         if (c.calc) { r.append(el('td','tbl__num', s[c.k] + '%')); return; }
-        const td = el('td','tbl__num' + (oneDay && s.id ? ' cell--edit' : ''), nf(s[c.k]));
-        if (oneDay && s.id) {
+        const td = el('td','tbl__num' + (oneDay ? ' cell--edit' : ''), nf(s[c.k]));
+        if (oneDay) {
           td.title = 'Нажми, чтобы изменить';
-          td.onclick = ev => { ev.stopPropagation(); editCell(td, s.id, c.k, s[c.k], s.name); };
+          td.onclick = ev => { ev.stopPropagation(); editCell(td, s.id || null, c.k, s[c.k], s.name); };
         }
         r.append(td);
       });
@@ -906,6 +906,8 @@ function renderOutreach() {
   fr.append(el('td','tbl__name','Итого'));
   OUTCOLS.forEach(c => fr.append(el('td','tbl__num', c.calc ? total[c.k] + '%' : nf(total[c.k]))));
   tf.append(fr); t.append(tf);
+
+  renderOutAdd(oneDay);
 
   /* графики по типам рассылок */
   const n = daysIn(S.from, S.to);
@@ -924,6 +926,71 @@ function renderOutreach() {
       w.append(multiChart(series, step));
       box.append(w);
     });
+}
+
+/* быстрое заведение скрипта прямо на листе */
+function renderOutAdd(oneDay) {
+  const box = $('#outAdd'); if (!box) return;
+  const st = S.nf.outAdd = S.nf.outAdd || { open:false, niche:'', newNiche:false };
+  box.innerHTML = '';
+  if (!st.open) {
+    box.append(el('span','form__cnt', oneDay
+      ? 'Нет нужного скрипта в списке?'
+      : 'Скрипты заводятся здесь же'));
+    const b = el('button','btn','+ Новый скрипт');
+    b.onclick = () => { st.open = true; renderOutAdd(oneDay); };
+    box.append(b);
+    return;
+  }
+  if (!S.niches.some(n => n.id === st.niche)) st.niche = S.niches[0]?.id || '';
+  const wrap = el('div','addrow', `
+    <div class="fld__row" style="flex:1">
+      ${st.newNiche || !S.niches.length
+        ? `<input class="inp" id="oa_nnew" placeholder="Новая ниша">`
+        : `<select class="sel" id="oa_n">${S.niches.map(n => `<option value="${n.id}"${n.id===st.niche?' selected':''}>${n.name}</option>`).join('')}</select>`}
+      <button type="button" class="btn btn--icon" id="oa_ntog">${st.newNiche && S.niches.length ? '×' : '+'}</button>
+    </div>
+    <select class="sel" id="oa_t" style="flex:1">${S.otypes.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}</select>
+    <input class="inp" id="oa_name" placeholder="Название скрипта" style="flex:1.4">`);
+  const ok = el('button','btn btn--primary','Создать');
+  const no = el('button','btn','Отмена');
+  no.onclick = () => { st.open = false; renderOutAdd(oneDay); };
+  ok.onclick = () => createScript(st, ok);
+  wrap.append(no, ok);
+  box.append(wrap);
+  const tog = $('#oa_ntog'); if (tog) tog.onclick = () => { st.newNiche = !st.newNiche; renderOutAdd(oneDay); };
+  const ns = $('#oa_n'); if (ns) ns.onchange = e => { st.niche = e.target.value; };
+}
+
+async function createScript(st, btn) {
+  if (!requireToken()) return;
+  try {
+    const name = $('#oa_name').value.trim();
+    if (!name) throw new Error('Впиши название скрипта');
+    const type = $('#oa_t').value;
+    let nicheId, nicheName, newN = null;
+    const nn = $('#oa_nnew');
+    if (nn) {
+      const v = nn.value.trim(); if (!v) throw new Error('Укажи нишу');
+      const ex = S.niches.find(n => n.name.toLowerCase() === v.toLowerCase());
+      if (ex) { nicheId = ex.id; nicheName = ex.name; }
+      else { nicheId = slug(v, S.niches.map(n => n.id)); nicheName = v; newN = { id:nicheId, name:v }; }
+    } else { nicheId = $('#oa_n').value; nicheName = S.niches.find(n => n.id === nicheId)?.name || ''; }
+    if (S.scripts.some(s => s.niche === nicheId && s.type === type && s.name.toLowerCase() === name.toLowerCase()))
+      throw new Error('Такой скрипт уже есть');
+    busy(btn, true);
+    const id = slug(nicheId + '_' + type + '_' + name, S.scripts.map(s => s.id));
+    await ghSave('data/channels.json', d => {
+      d.scripts = d.scripts || [];
+      if (newN && !d.niches.some(x => x.id === newN.id)) d.niches.push(newN);
+      d.scripts.push({ id, niche:nicheId, type, name });
+      return d;
+    }, `Справочник: скрипт «${name}» · ${nicheName} · ${typeName(type)}`);
+    S.nf.outAdd.open = false;
+    await reload();
+    alertBox(`Скрипт «${name}» создан — впиши числа в таблице`);
+  } catch (e) { alertBox(e.message); }
+  finally { busy(btn, false); }
 }
 
 /* правка числа прямо в таблице */
