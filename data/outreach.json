@@ -2,13 +2,21 @@
  {
   "date": "2026-10-07",
   "type": "admin",
+  "script": null,
   "contacts": 42,
-  "replies": 3
+  "replies": 3,
+  "audits": 2,
+  "quals": 0,
+  "zooms": 0
  },
  {
   "date": "2026-10-13",
   "type": "lpr",
+  "script": null,
   "contacts": 1,
-  "replies": 0
+  "replies": 0,
+  "audits": 0,
+  "quals": 0,
+  "zooms": 0
  }
 ]

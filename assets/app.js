@@ -53,7 +53,7 @@ function prevRange() {
 
 /* ===================== state ===================== */
 const S = {
-  leads: [], spend: [], outreach: [], channels: [], stages: [], goals: {}, niches: [], offers: [], otypes: [],
+  leads: [], spend: [], outreach: [], channels: [], stages: [], goals: {}, niches: [], offers: [], scripts: [], otypes: [],
   from: monStart(TODAY), to: TODAY, preset: 'month', sel: new Set(),
   tab: 'out', cols: null, sort: { key:'spend', dir:-1 }, collapsed: new Set(),
   pending: new Map(), removed: new Set(), nf: {}
@@ -81,7 +81,7 @@ async function boot() {
         .map(u => fetch(u, {cache:'no-store'}).then(r => { if (!r.ok) throw new Error(u); return r.json(); }))
     );
     S.channels = cfg.channels; S.stages = cfg.stages;
-    S.niches = cfg.niches || []; S.offers = cfg.offers || [];
+    S.niches = cfg.niches || []; S.offers = cfg.offers || []; S.scripts = cfg.scripts || [];
     S.leads = leads; S.spend = spend; S.goals = goals; S.outreach = outreach;
     S.otypes = cfg.outreach_types || [];
     S.sel = new Set(S.channels.map(c => c.id));
@@ -779,49 +779,72 @@ function drawChannels() {
   pop.append(foot);
 }
 
-/* ===================== лист «Рассылки» ===================== */
-function outRows(from, to) {
-  const blank = () => ({ contacts:0, replies:0, leads:0, quals:0, zooms:0 });
-  const agg = new Map();
-  S.otypes.forEach(t => agg.set(t.id, blank()));
-  S.outreach.forEach(o => {
-    if (!inRange(o.date, from, to)) return;
-    const m = agg.get(o.type); if (!m) return;
-    m.contacts += o.contacts || 0; m.replies += o.replies || 0;
-  });
-  S.leads.forEach(l => {
-    if (l.channel !== 'cold' || !inRange(l.date, from, to)) return;
-    const m = agg.get(l.otype); if (!m) return;
-    m.leads++;
-    if (l.qual_date) m.quals++;
-    if (l.zoom_date) m.zooms++;
-  });
-  const rows = S.otypes.map(t => ({ id:t.id, name:t.name, color:t.color, ...agg.get(t.id) }));
-  const tot = blank();
-  rows.forEach(r => ['contacts','replies','leads','quals','zooms'].forEach(k => tot[k] += r[k]));
-  return { rows, total: tot };
+/* ===================== лист «Аутрич» ===================== */
+const OUTCOLS = [
+  { k:'contacts', n:'Контакты',        edit:true },
+  { k:'cr',       n:'% в ответ',       calc:true },
+  { k:'replies',  n:'Ответы',          edit:true },
+  { k:'ca',       n:'% в аудит',       calc:true },
+  { k:'audits',   n:'Аудит отправлен', edit:true },
+  { k:'quals',    n:'Квал',            edit:true },
+  { k:'zooms',    n:'Зумы',            edit:true }
+];
+const NUMK = ['contacts','replies','audits','quals','zooms'];
+const scriptById = id => S.scripts.find(s => s.id === id);
+const typeName = id => S.otypes.find(t => t.id === id)?.name || '';
+const typeColor = id => S.otypes.find(t => t.id === id)?.color || 'var(--ink-3)';
+
+function withConv(m) {
+  return { ...m, cr: pct(m.replies, m.contacts), ca: pct(m.audits, m.replies) };
 }
 
-const OUTCOLS = [
-  { k:'contacts', n:'Контакты' }, { k:'replies', n:'Ответы' }, { k:'leads', n:'Заявки' },
-  { k:'quals', n:'Квал' }, { k:'zooms', n:'Зумы' }
-];
+function outRows(from, to) {
+  const blank = () => ({ contacts:0, replies:0, audits:0, quals:0, zooms:0 });
+  const bySc = new Map();                       // scriptId (или '') -> метрики
+  S.outreach.forEach(o => {
+    if (!inRange(o.date, from, to)) return;
+    const k = o.script || '';
+    if (!bySc.has(k)) bySc.set(k, { ...blank(), type: o.type });
+    const m = bySc.get(k);
+    NUMK.forEach(f => m[f] += o[f] || 0);
+  });
+
+  const groups = [];
+  const push = (nicheId, name, scripts) => {
+    const t = blank();
+    scripts.forEach(s => NUMK.forEach(f => t[f] += s[f]));
+    groups.push({ id: nicheId, name, scripts, ...withConv(t) });
+  };
+  S.niches.forEach(n => {
+    const scripts = S.scripts.filter(s => s.niche === n.id)
+      .map(s => ({ id:s.id, name:s.name, type:s.type, ...withConv(bySc.get(s.id) || blank()) }))
+      .filter(s => NUMK.some(f => s[f] > 0));           // показываем только то, что работало
+    if (scripts.length) push(n.id, n.name, scripts);
+  });
+  const orphan = bySc.get('');
+  if (orphan && NUMK.some(f => orphan[f] > 0)) {
+    push('__none__', 'Без скрипта',
+      [{ id:'', name:'Записи без скрипта', type: orphan.type, ...withConv(orphan) }]);
+  }
+
+  const tot = blank();
+  groups.forEach(g => NUMK.forEach(f => tot[f] += g[f]));
+  return { groups, total: withConv(tot) };
+}
 
 function renderOutreach() {
-  const { rows, total } = outRows(S.from, S.to);
+  const { groups, total } = outRows(S.from, S.to);
   const [pFrom, pTo] = prevRange();
   const prev = outRows(pFrom, pTo).total;
 
   const tiles = [
-    { n:'Контакты', v: nf(total.contacts), raw:total.contacts, prev:prev.contacts },
-    { n:'Ответы',   v: nf(total.replies),  raw:total.replies,  prev:prev.replies },
-    { n:'Заявки',   v: nf(total.leads),    raw:total.leads,    prev:prev.leads },
-    { n:'Квал',     v: nf(total.quals),    raw:total.quals,    prev:prev.quals },
-    { n:'Зумы',     v: nf(total.zooms),    raw:total.zooms,    prev:prev.zooms },
-    { n:'Ответов на контакт', v: pct(total.replies, total.contacts) + '%',
-      raw: pct(total.replies, total.contacts), prev: pct(prev.replies, prev.contacts) },
-    { n:'Заявок из ответов',  v: pct(total.leads, total.replies) + '%',
-      raw: pct(total.leads, total.replies), prev: pct(prev.leads, prev.replies) }
+    { n:'Контакты',        v: nf(total.contacts), raw:total.contacts, prev:prev.contacts },
+    { n:'% в ответ',       v: total.cr + '%',     raw:total.cr,       prev:prev.cr },
+    { n:'Ответы',          v: nf(total.replies),  raw:total.replies,  prev:prev.replies },
+    { n:'% в аудит',       v: total.ca + '%',     raw:total.ca,       prev:prev.ca },
+    { n:'Аудит отправлен', v: nf(total.audits),   raw:total.audits,   prev:prev.audits },
+    { n:'Квал',            v: nf(total.quals),    raw:total.quals,    prev:prev.quals },
+    { n:'Зумы',            v: nf(total.zooms),    raw:total.zooms,    prev:prev.zooms }
   ];
   const top = $('#outTop'); top.className = 'kpis kpis--7'; top.innerHTML = '';
   tiles.forEach(it => {
@@ -834,60 +857,117 @@ function renderOutreach() {
       <div class="kpi__sub"><span class="delta ${cls}">${arrow}${Math.abs(Math.round(d))}%</span></div>`));
   });
 
-  /* таблица типов */
+  const oneDay = S.from === S.to;
+  $('#outHint').innerHTML = oneDay
+    ? `Правки сохраняются сразу — нажми на любое число за <b>${long(S.from)}</b>`
+    : 'Показано только то, что работало за период. Чтобы править числа, выбери один день — например, кнопкой «Сегодня»';
+
   const t = $('#outTbl'); t.innerHTML = '';
-  const hr = el('tr'); hr.append(el('th','tbl__name','Тип рассылки'));
+  const thead = el('thead'); const hr = el('tr');
+  hr.append(el('th','tbl__name','Ниша и скрипт'));
   OUTCOLS.forEach(c => hr.append(el('th','tbl__num', c.n)));
-  hr.append(el('th','tbl__num','Ответ, %'), el('th','tbl__num','Заявка, %'));
-  t.append(el('thead','', '')); t.querySelector('thead').append(hr);
+  thead.append(hr); t.append(thead);
+
   const tb = el('tbody');
-  rows.forEach(r => {
-    const tr = el('tr');
+  if (!groups.length) {
+    tb.append(el('tr','', `<td class="empty" colspan="${OUTCOLS.length + 1}">За выбранный период рассылок не было</td>`));
+  }
+  groups.forEach(g => {
+    const open = !S.collapsed.has('o_' + g.id);
+    const tr = el('tr','tbl__niche');
     tr.append(el('td','tbl__name',
-      `<span class="tbl__t"><span class="chan__dot" style="background:${r.color};display:inline-block;margin-right:8px"></span>${r.name}</span>`));
-    OUTCOLS.forEach(c => tr.append(el('td','tbl__num', nf(r[c.k]))));
-    tr.append(el('td','tbl__num', pct(r.replies, r.contacts) + '%'));
-    tr.append(el('td','tbl__num', pct(r.leads, r.replies) + '%'));
+      `<span class="tbl__t"><span class="tbl__chev">${open ? '▾' : '▸'}</span>${g.name}
+       <span class="tbl__cnt">${g.scripts.length}</span></span>`));
+    OUTCOLS.forEach(c => tr.append(el('td','tbl__num', c.calc ? g[c.k] + '%' : nf(g[c.k]))));
+    tr.onclick = () => { const k = 'o_' + g.id;
+      S.collapsed.has(k) ? S.collapsed.delete(k) : S.collapsed.add(k); renderOutreach(); };
     tb.append(tr);
+    if (!open) return;
+    g.scripts.forEach(s => {
+      const r = el('tr','tbl__offer');
+      r.append(el('td','tbl__name',
+        `<span class="tbl__t" title="${s.name} · ${typeName(s.type)}">
+           <span class="chan__dot" style="background:${typeColor(s.type)};display:inline-block;margin-right:7px"></span>${s.name}</span>`));
+      OUTCOLS.forEach(c => {
+        if (c.calc) { r.append(el('td','tbl__num', s[c.k] + '%')); return; }
+        const td = el('td','tbl__num' + (oneDay && s.id ? ' cell--edit' : ''), nf(s[c.k]));
+        if (oneDay && s.id) {
+          td.title = 'Нажми, чтобы изменить';
+          td.onclick = ev => { ev.stopPropagation(); editCell(td, s.id, c.k, s[c.k], s.name); };
+        }
+        r.append(td);
+      });
+      tb.append(r);
+    });
   });
   t.append(tb);
-  const fr = el('tr'); fr.append(el('td','tbl__name','Итого'));
-  OUTCOLS.forEach(c => fr.append(el('td','tbl__num', nf(total[c.k]))));
-  fr.append(el('td','tbl__num', pct(total.replies, total.contacts) + '%'));
-  fr.append(el('td','tbl__num', pct(total.leads, total.replies) + '%'));
-  const tf = el('tfoot'); tf.append(fr); t.append(tf);
 
-  /* графики по времени, две серии */
+  const tf = el('tfoot'); const fr = el('tr');
+  fr.append(el('td','tbl__name','Итого'));
+  OUTCOLS.forEach(c => fr.append(el('td','tbl__num', c.calc ? total[c.k] + '%' : nf(total[c.k]))));
+  tf.append(fr); t.append(tf);
+
+  /* графики по типам рассылок */
   const n = daysIn(S.from, S.to);
   const step = n <= 45 ? 'day' : n <= 200 ? 'week' : 'month';
   $('#outDyn').textContent = `${short(S.from)} — ${short(S.to)} · по ${{day:'дням',week:'неделям',month:'месяцам'}[step]}`;
   const box = $('#outCharts'); box.innerHTML = '';
-  [['contacts','Контакты'], ['replies','Ответы'], ['leads','Заявки'], ['quals','Квал. заявки'], ['zooms','Зумы']].forEach(([kind, title]) => {
-    const series = S.otypes.map(t2 => ({
-      name: t2.name, color: t2.color, rows: bin(outSeries(S.from, S.to, kind, t2.id), step)
-    }));
-    const sum = series.reduce((a,s) => a + s.rows.reduce((x,r) => x + r.v, 0), 0);
-    const w = el('div','ch', `<div class="ch__head"><span class="ch__t">${title}</span>
-      <span class="ch__sum">всего ${nf(sum)}</span></div>`);
-    w.append(legend(series));
-    w.append(multiChart(series, step));
-    box.append(w);
-  });
+  [['contacts','Контакты'], ['replies','Ответы'], ['audits','Аудиты'], ['quals','Квал'], ['zooms','Зумы']]
+    .forEach(([kind, title]) => {
+      const series = S.otypes.map(t2 => ({
+        name: t2.name, color: t2.color, rows: bin(outSeries(S.from, S.to, kind, t2.id), step)
+      }));
+      const sum = series.reduce((a,s) => a + s.rows.reduce((x,r) => x + r.v, 0), 0);
+      const w = el('div','ch', `<div class="ch__head"><span class="ch__t">${title}</span>
+        <span class="ch__sum">всего ${nf(sum)}</span></div>`);
+      w.append(legend(series));
+      w.append(multiChart(series, step));
+      box.append(w);
+    });
+}
+
+/* правка числа прямо в таблице */
+function editCell(td, scriptId, field, cur, scName) {
+  if (td.querySelector('input')) return;
+  if (!GH.token) { alertBox('Сначала подключи ключ доступа на листе «Данные»'); return; }
+  const inp = el('input','inp inp--sm');
+  inp.type = 'number'; inp.min = 0; inp.value = cur;
+  td.textContent = ''; td.append(inp); inp.focus(); inp.select();
+  let done = false;
+  const finish = async ok => {
+    if (done) return; done = true;
+    const v = Math.max(0, Math.round(parseFloat(inp.value) || 0));
+    if (!ok || v === cur) { renderOutreach(); return; }
+    td.textContent = '…';
+    try {
+      const label = OUTCOLS.find(c => c.k === field).n.toLowerCase();
+      await ghSave('data/outreach.json', d => {
+        const i = d.findIndex(o => o.date === S.from && (o.script || null) === scriptId);
+        if (i >= 0) d[i][field] = v;
+        else {
+          const sc = scriptById(scriptId);
+          d.push({ date:S.from, type: sc?.type || null, script:scriptId,
+                   contacts:0, replies:0, audits:0, quals:0, zooms:0, [field]: v });
+        }
+        return d;
+      }, `Аутрич · ${scName} · ${label}: ${cur} → ${v} · ${short(S.from)}`);
+      await reload();
+    } catch (e) { alertBox('Не сохранилось: ' + e.message); renderOutreach(); }
+  };
+  inp.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  };
+  inp.onblur = () => finish(true);
 }
 
 function outSeries(from, to, kind, type) {
   const out = new Map();
   for (let d = from; d <= to; d = addD(d, 1)) out.set(d, 0);
-  if (kind === 'contacts' || kind === 'replies') {
-    S.outreach.forEach(o => { if (o.type === type && out.has(o.date)) out.set(o.date, out.get(o.date) + (o[kind] || 0)); });
-  } else {
-    const need = kind === 'quals' ? 'qual_date' : kind === 'zooms' ? 'zoom_date' : null;
-    S.leads.forEach(l => {
-      if (l.channel !== 'cold' || l.otype !== type) return;
-      if (need && !l[need]) return;
-      if (out.has(l.date)) out.set(l.date, out.get(l.date) + 1);
-    });
-  }
+  S.outreach.forEach(o => {
+    if (o.type !== type || !out.has(o.date)) return;
+    out.set(o.date, out.get(o.date) + (o[kind] || 0));
+  });
   return [...out].map(([date, v]) => ({ date, v }));
 }
 
@@ -1128,18 +1208,41 @@ function renderForms() {
 
 function renderOutForm() {
   const f = $('#outForm'); if (!f) return;
-  const st = S.nf.outForm = S.nf.outForm || { type: S.otypes[0]?.id || '' };
+  const st = S.nf.outForm = S.nf.outForm || { type: S.otypes[0]?.id || '', niche:'', script:'', newNiche:false, newScript:false };
+  if (!S.niches.some(n => n.id === st.niche)) st.niche = S.niches[0]?.id || '';
   if (!S.otypes.some(t => t.id === st.type)) st.type = S.otypes[0]?.id || '';
+  const scs = S.scripts.filter(s => s.niche === st.niche && s.type === st.type);
+  if (!scs.some(s => s.id === st.script)) st.script = scs[0]?.id || '';
+
   f.innerHTML = `
     <label class="fld"><span class="fld__l">Дата</span>
       <input class="inp" type="date" id="of_date" value="${TODAY}" max="${TODAY}"></label>
+    <label class="fld"><span class="fld__l">Ниша</span>
+      <div class="fld__row">
+        ${st.newNiche || !S.niches.length
+          ? `<input class="inp" id="of_nnew" placeholder="Например: Стоматологии">`
+          : `<select class="sel" id="of_n">${S.niches.map(n => `<option value="${n.id}"${n.id===st.niche?' selected':''}>${n.name}</option>`).join('')}</select>`}
+        <button type="button" class="btn btn--icon" id="of_ntog">${st.newNiche && S.niches.length ? '×' : '+'}</button>
+      </div></label>
     ${fieldSel('of_type','Тип рассылки', S.otypes.map(t => [t.id, t.name]), st.type)}
+    <label class="fld"><span class="fld__l">Скрипт</span>
+      <div class="fld__row">
+        ${st.newScript || !scs.length
+          ? `<input class="inp" id="of_snew" placeholder="Например: Короткий с кейсом">`
+          : `<select class="sel" id="of_s">${scs.map(s => `<option value="${s.id}"${s.id===st.script?' selected':''}>${s.name}</option>`).join('')}</select>`}
+        <button type="button" class="btn btn--icon" id="of_stog">${st.newScript && scs.length ? '×' : '+'}</button>
+      </div></label>
     <label class="fld"><span class="fld__l">Контакты</span>
       <input class="inp" type="number" id="of_c" min="0" placeholder="300"></label>
     <label class="fld"><span class="fld__l">Ответы</span>
       <input class="inp" type="number" id="of_r" min="0" placeholder="12"></label>
     <button type="submit" class="btn btn--primary btn--wide">Записать рассылку</button>`;
-  $('#of_type').onchange = e => { st.type = e.target.value; };
+
+  $('#of_type').onchange = e => { st.type = e.target.value; renderOutForm(); };
+  $('#of_ntog').onclick = () => { st.newNiche = !st.newNiche; renderOutForm(); };
+  $('#of_stog').onclick = () => { st.newScript = !st.newScript; renderOutForm(); };
+  const ns = $('#of_n'); if (ns) ns.onchange = e => { st.niche = e.target.value; st.script=''; renderOutForm(); };
+  const ss = $('#of_s'); if (ss) ss.onchange = e => { st.script = e.target.value; };
   f.onsubmit = e => { e.preventDefault(); submitOutreach(st); };
 }
 
@@ -1152,17 +1255,49 @@ async function submitOutreach(st) {
     const replies  = Math.round(parseFloat($('#of_r').value) || 0);
     if (!date) throw new Error('Укажи дату');
     if (!contacts && !replies) throw new Error('Заполни контакты или ответы');
-    if (replies > contacts && contacts) throw new Error('Ответов больше, чем контактов — проверь');
+    if (contacts && replies > contacts) throw new Error('Ответов больше, чем контактов — проверь');
+
+    // ниша
+    let nicheId, nicheName, newN = null;
+    const nnew = $('#of_nnew');
+    if (nnew) {
+      const name = nnew.value.trim(); if (!name) throw new Error('Укажи нишу');
+      const ex = S.niches.find(n => n.name.toLowerCase() === name.toLowerCase());
+      if (ex) { nicheId = ex.id; nicheName = ex.name; }
+      else { nicheId = slug(name, S.niches.map(n => n.id)); nicheName = name; newN = { id:nicheId, name }; }
+    } else { nicheId = $('#of_n').value; nicheName = S.niches.find(n => n.id === nicheId)?.name || ''; }
+
+    // скрипт
+    let scriptId, scriptName, newS = null;
+    const snew = $('#of_snew');
+    if (snew) {
+      const name = snew.value.trim(); if (!name) throw new Error('Укажи скрипт');
+      const ex = S.scripts.find(s => s.niche === nicheId && s.type === st.type && s.name.toLowerCase() === name.toLowerCase());
+      if (ex) { scriptId = ex.id; scriptName = ex.name; }
+      else { scriptId = slug(nicheId + '_' + st.type + '_' + name, S.scripts.map(s => s.id));
+             scriptName = name; newS = { id:scriptId, niche:nicheId, type:st.type, name }; }
+    } else { scriptId = $('#of_s').value; scriptName = S.scripts.find(s => s.id === scriptId)?.name || ''; }
+
     busy(btn, true);
-    const name = S.otypes.find(t => t.id === st.type)?.name || st.type;
+    if (newN || newS) {
+      await ghSave('data/channels.json', d => {
+        d.scripts = d.scripts || [];
+        if (newN && !d.niches.some(x => x.id === newN.id)) d.niches.push(newN);
+        if (newS && !d.scripts.some(x => x.id === newS.id)) d.scripts.push(newS);
+        return d;
+      }, `Справочник: ${[newN && 'ниша ' + newN.name, newS && 'скрипт ' + newS.name].filter(Boolean).join(', ')}`);
+      if (newN) S.niches.push(newN);
+      if (newS) S.scripts.push(newS);
+    }
+
     await ghSave('data/outreach.json', d => {
-      const i = d.findIndex(o => o.date === date && o.type === st.type);
-      const rec = { date, type: st.type, contacts, replies };
-      if (i >= 0) d[i] = rec; else d.push(rec);
+      const i = d.findIndex(o => o.date === date && (o.script || null) === scriptId);
+      if (i >= 0) { d[i].contacts = contacts; d[i].replies = replies; d[i].type = st.type; }
+      else d.push({ date, type: st.type, script: scriptId, contacts, replies, audits:0, quals:0, zooms:0 });
       return d;
-    }, `Рассылка · ${name} · ${nf(contacts)} контактов, ${nf(replies)} ответов · ${short(date)}`);
+    }, `Аутрич · ${nicheName} / ${scriptName} · ${nf(contacts)} контактов, ${nf(replies)} ответов · ${short(date)}`);
     await reload();
-    alertBox(`Записано: ${name} — ${contacts} контактов, ${replies} ответов`);
+    alertBox(`Записано: ${scriptName} — ${contacts} контактов, ${replies} ответов`);
   } catch (e) { alertBox('Не сохранилось: ' + e.message); }
   finally { busy(btn, false); }
 }
@@ -1374,7 +1509,7 @@ async function reload() {
         return fetch(f + '?_=' + Date.now(), {cache:'no-store'}).then(r => r.json());
       }));
     S.channels = cfg.channels; S.stages = cfg.stages;
-    S.niches = cfg.niches || []; S.offers = cfg.offers || []; S.otypes = cfg.outreach_types || [];
+    S.niches = cfg.niches || []; S.offers = cfg.offers || []; S.scripts = cfg.scripts || []; S.otypes = cfg.outreach_types || [];
     S.leads = leads; S.spend = spend; S.goals = goals; S.outreach = outreach;
     S.sel = new Set(S.channels.map(c => c.id));
     if (S.tab === 'data') { renderForms(); renderEdit(); renderHistory(); } else render();

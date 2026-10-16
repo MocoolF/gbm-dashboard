@@ -281,6 +281,12 @@ html[data-theme="dark"] .toast{background:#0d1216;border:1px solid var(--line)}
 .lgnd__d{width:9px;height:9px;border-radius:3px;flex:none}
 .tip__dot{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:6px;vertical-align:0}
 
+.cell--edit{cursor:pointer;position:relative;border-radius:6px}
+.cell--edit:hover{background:var(--brand-soft);box-shadow:inset 0 0 0 1px var(--brand)}
+.cell--edit:hover::after{content:'';position:absolute;right:3px;top:3px;width:4px;height:4px;
+  border-radius:50%;background:var(--brand)}
+.cell--edit .inp--sm{max-width:90px}
+
 /* ---------- tooltip ---------- */
 .tip{position:fixed;z-index:90;pointer-events:none;background:var(--ink);color:#fff;border-radius:8px;
   padding:7px 10px;font-size:12px;line-height:1.5;box-shadow:0 4px 18px rgba(0,0,0,.22);white-space:nowrap}
