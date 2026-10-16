@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="robots" content="noindex, nofollow">
 <title>GBM Studio — Дашборд</title>
-<link rel="stylesheet" href="assets/style.css?v=6be33a20">
+<link rel="stylesheet" href="assets/style.css?v=da8dc298">
 </head>
 <body>
 
@@ -117,7 +117,7 @@
 
   <footer class="foot">
     Данные вносятся вручную в <code>data/leads.json</code> и <code>data/spend.json</code>
-    · <span id="build">сборка 17.10 00:34 · 6be33a20</span>
+    · <span id="build">сборка 17.10 00:53 · da8dc298</span>
   </footer>
 </main>
 
@@ -142,6 +142,23 @@
 
   <section class="top" id="outTop"></section>
 
+  <section class="grid2">
+    <div class="card">
+      <div class="card__head">
+        <h2 class="card__title">Воронка</h2>
+        <p class="card__hint">Путь от контакта до зума за выбранный период</p>
+      </div>
+      <div id="outFunnel"></div>
+    </div>
+    <div class="card">
+      <div class="card__head">
+        <h2 class="card__title">Рассылок в день</h2>
+        <p class="card__hint" id="outDayHint"></p>
+      </div>
+      <div id="outDay"></div>
+    </div>
+  </section>
+
   <section class="card">
     <div class="card__head">
       <h2 class="card__title">Ниши и скрипты</h2>
@@ -149,14 +166,6 @@
     </div>
     <div class="tablewrap"><table class="tbl" id="outTbl"></table></div>
     <div class="form__foot" id="outAdd"></div>
-  </section>
-
-  <section class="card">
-    <div class="card__head">
-      <h2 class="card__title">Распределение по времени</h2>
-      <p class="card__hint" id="outDyn"></p>
-    </div>
-    <div class="charts" id="outCharts"></div>
   </section>
 
   <footer class="foot">
@@ -212,6 +221,6 @@
 
 <div class="tip" id="tip" hidden></div>
 
-<script src="assets/app.js?v=6be33a20"></script>
+<script src="assets/app.js?v=da8dc298"></script>
 </body>
 </html>

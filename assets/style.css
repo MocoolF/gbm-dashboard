@@ -185,6 +185,23 @@ html[data-theme="dark"] .quick__b.is-on{box-shadow:none}
 .fn__cv{font-size:11.5px;color:var(--ink-3);margin-left:10px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .fn__cv b{color:var(--ink-2);font-weight:600}
 
+/* ---------- воронка аутрича ---------- */
+.fnl{display:flex;flex-direction:column;gap:9px}
+.fnl__row{display:grid;grid-template-columns:112px 1fr 46px;align-items:center;gap:10px}
+.fnl__n{font-size:12.5px;color:var(--ink-2);text-align:right;line-height:1.25}
+.fnl__cell{display:flex;align-items:center;justify-content:center;position:relative;min-width:0}
+.fnl__bar{height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+  min-width:0;transition:width .45s cubic-bezier(.4,0,.2,1)}
+.fnl__v{font-size:14px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
+.fnl__v--out{color:var(--ink);margin-left:9px}
+.fnl__c{font-size:12px;color:var(--ink-3);text-align:right;font-variant-numeric:tabular-nums}
+.fnl__c b{color:var(--ink-2);font-weight:600}
+
+/* средний объём в день */
+.dayavg{display:flex;align-items:baseline;gap:11px;margin-bottom:12px}
+.dayavg__v{font-size:34px;font-weight:700;letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums}
+.dayavg__l{font-size:11.5px;color:var(--ink-3);line-height:1.35}
+
 /* ---------- rings ---------- */
 .rings{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 6px}
 .ring{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
@@ -303,13 +320,22 @@ html[data-theme="dark"] .tip{background:#0d1216;border:1px solid var(--line)}
 .empty{padding:26px;text-align:center;color:var(--ink-3);font-size:13px}
 
 /* ---------- responsive ---------- */
-@media (max-width:560px){
-  .brand{display:none}
+@media (max-width:640px){
+  /* навигация уезжает вниз, как таб-бар в приложении */
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:60;margin:0;gap:2px;
+    background:var(--surface);border-top:1px solid var(--line);
+    padding:7px 8px calc(7px + env(safe-area-inset-bottom, 0px));
+    box-shadow:0 -2px 14px rgba(36,50,58,.07)}
+  html[data-theme="dark"] .tabs{box-shadow:0 -2px 14px rgba(0,0,0,.3)}
+  .tab{flex:1;text-align:center;padding:9px 4px;font-size:12px}
   .tabs__arch{display:none}
-  .tabs{gap:1px}
-  .topbar__in{gap:6px}
-  .tabs{margin-left:0;flex:1}
-  .tab{flex:1;text-align:center;padding:6px 4px;font-size:12px}
+  .tab--arch{color:var(--ink-3)}
+  body{padding-bottom:calc(74px + env(safe-area-inset-bottom, 0px))}
+  .brand{display:block}
+  .toast{bottom:calc(84px + env(safe-area-inset-bottom, 0px))}
+  .fnl__row{grid-template-columns:96px 1fr 42px;gap:7px}
+  .fnl__n{font-size:11.5px}
+  .dayavg__v{font-size:28px}
 }
 @media (max-width:1240px){
   .kpis{grid-template-columns:repeat(3,1fr)}

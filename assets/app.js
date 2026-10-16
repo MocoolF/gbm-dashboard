@@ -909,24 +909,111 @@ function renderOutreach() {
   tf.append(fr); t.append(tf);
 
   renderOutAdd(oneDay);
+  renderOutFunnel(total);
+  renderOutDay();
+}
 
-  /* графики по типам рассылок */
-  const n = daysIn(S.from, S.to);
-  const step = n <= 45 ? 'day' : n <= 200 ? 'week' : 'month';
-  $('#outDyn').textContent = `${short(S.from)} — ${short(S.to)} · по ${{day:'дням',week:'неделям',month:'месяцам'}[step]}`;
-  const box = $('#outCharts'); box.innerHTML = '';
-  [['contacts','Контакты']]
-    .forEach(([kind, title]) => {
-      const series = S.otypes.map(t2 => ({
-        name: t2.name, color: t2.color, rows: bin(outSeries(S.from, S.to, kind, t2.id), step)
-      }));
-      const sum = series.reduce((a,s) => a + s.rows.reduce((x,r) => x + r.v, 0), 0);
-      const w = el('div','ch ch--wide', `<div class="ch__head"><span class="ch__t">${title}</span>
-        <span class="ch__sum">всего ${nf(sum)}</span></div>`);
-      if (series.length > 1) w.append(legend(series));
-      w.append(multiChart(series, step));
-      box.append(w);
-    });
+/* воронка: центрированные ступени, конверсия сбоку */
+const OUTFUNNEL = [
+  ['contacts','Контакты'], ['replies','Ответы'], ['audits','Аудит отправлен'],
+  ['quals','Квал'], ['zooms','Зумы']
+];
+function renderOutFunnel(t) {
+  const box = $('#outFunnel'); box.innerHTML = '';
+  const max = Math.max(t.contacts, 1);
+  if (!t.contacts) { box.innerHTML = '<div class="empty">За выбранный период рассылок не было</div>'; return; }
+  const wrap = el('div','fnl');
+  OUTFUNNEL.forEach(([k, name], i) => {
+    const v = t[k];
+    const prev = i ? t[OUTFUNNEL[i-1][0]] : null;
+    const w = v > 0 ? Math.max(v / max * 100, 7) : 0;
+    const inside = w >= 22;
+    wrap.append(el('div','fnl__row', `
+      <div class="fnl__n">${name}</div>
+      <div class="fnl__cell">
+        <div class="fnl__bar" style="width:${w}%;background:var(--fun${i+1})">
+          ${inside ? `<span class="fnl__v">${nf(v)}</span>` : ''}
+        </div>
+        ${inside ? '' : `<span class="fnl__v fnl__v--out">${nf(v)}</span>`}
+      </div>
+      <div class="fnl__c">${prev === null ? '' : `<b>${pct(v, prev)}%</b>`}</div>`));
+  });
+  box.append(wrap);
+}
+
+/* сколько контактов делаем в день */
+function renderOutDay() {
+  const rows = [];
+  for (let d = S.from; d <= S.to; d = addD(d, 1)) rows.push({ date:d, v:0 });
+  const idx = new Map(rows.map((r,i) => [r.date, i]));
+  S.outreach.forEach(o => { const i = idx.get(o.date); if (i != null) rows[i].v += o.contacts || 0; });
+
+  const active = rows.filter(r => r.v > 0);
+  const sum = rows.reduce((a,r) => a + r.v, 0);
+  const avg = active.length ? Math.round(sum / active.length) : 0;
+  $('#outDayHint').textContent = active.length
+    ? `${nf(sum)} контактов за ${active.length} ${plural(active.length,['активный день','активных дня','активных дней'])}`
+    : 'За выбранный период рассылок не было';
+
+  const box = $('#outDay'); box.innerHTML = '';
+  box.append(el('div','dayavg', `<span class="dayavg__v">${nf(avg)}</span>
+    <span class="dayavg__l">в среднем в день<br>по дням, когда рассылали</span>`));
+  box.append(barChart(rows));
+}
+
+function barChart(rows) {
+  const W = 520, H = 132, L = 34, R = 8, T = 10, B = 22;
+  const iw = W - L - R, ih = H - T - B;
+  const svg = mk('svg', { viewBox:`0 0 ${W} ${H}`, class:'ch__svg', role:'img' });
+  const nice = niceMax(Math.max(1, ...rows.map(r => r.v)));
+  const y = v => T + ih - (v / nice) * ih;
+  const n = rows.length;
+  const slot = iw / Math.max(n, 1);
+  const bw = Math.max(3, Math.min(26, slot - 4));
+
+  for (let i = 0; i <= 2; i++) {
+    const v = nice * i / 2, yy = y(v);
+    svg.append(mk('line', { x1:L, x2:W-R, y1:yy, y2:yy, stroke:'var(--line-2)', 'stroke-width':1 }));
+    const tx = mk('text', { x:L-6, y:yy+3.5, 'text-anchor':'end', 'font-size':10, fill:'var(--ink-3)' });
+    tx.textContent = Math.round(v); svg.append(tx);
+  }
+  rows.forEach((r,i) => {
+    const x = L + slot * i + (slot - bw) / 2;
+    const h = r.v > 0 ? Math.max(2, T + ih - y(r.v)) : 0;
+    if (h) svg.append(mk('rect', { x, y: T + ih - h, width:bw, height:h, rx:Math.min(4, bw/2),
+      fill:'var(--brand)', opacity: .9 }));
+  });
+  const every = Math.ceil(n / 6);
+  let lastLabel = -99;
+  rows.forEach((r,i) => {
+    const isLast = i === n - 1;
+    if (i % every !== 0 && !isLast) return;
+    if (isLast && i - lastLabel < every * 0.6) return;      // не даём подписям слипнуться
+    lastLabel = i;
+    const tx = mk('text', { x:L + slot * i + slot/2, y:H-6, 'text-anchor':'middle', 'font-size':10, fill:'var(--ink-3)' });
+    tx.textContent = short(r.date); svg.append(tx);
+  });
+
+  const tip = $('#tip');
+  const move = ev => {
+    const b = svg.getBoundingClientRect();
+    const px = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - b.left) / b.width * W;
+    let i = Math.floor((px - L) / slot);
+    i = Math.max(0, Math.min(n - 1, i));
+    tip.hidden = false;
+    tip.innerHTML = `<div class="tip__d">${long(rows[i].date)}</div><b>${nf(rows[i].v)}</b> контактов`;
+    const cx = (ev.touches ? ev.touches[0].clientX : ev.clientX), cy = (ev.touches ? ev.touches[0].clientY : ev.clientY);
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = Math.max(8, Math.min(innerWidth - tw - 8, cx - tw/2)) + 'px';
+    tip.style.top  = Math.max(8, cy - th - 14) + 'px';
+  };
+  const out = () => { tip.hidden = true; };
+  svg.addEventListener('mousemove', move);
+  svg.addEventListener('mouseleave', out);
+  svg.addEventListener('touchstart', move, {passive:true});
+  svg.addEventListener('touchmove', move, {passive:true});
+  svg.addEventListener('touchend', out);
+  return svg;
 }
 
 /* быстрое заведение скрипта прямо на листе */
