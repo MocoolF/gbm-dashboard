@@ -1,77 +1,88 @@
 {
-  "channels": [
-    {
-      "id": "vk",
-      "name": "ВК реклама",
-      "color": "#328DFF"
-    },
-    {
-      "id": "calls",
-      "name": "Дозвоны",
-      "color": "#eb6834"
-    },
-    {
-      "id": "cold",
-      "name": "Холодные рассылки",
-      "color": "#1baf7a"
-    },
-    {
-      "id": "tg",
-      "name": "Чаты в телеграм",
-      "color": "#eda100"
-    }
-  ],
-  "niches": [
-    {
-      "id": "stroymat",
-      "name": "Стройматериалы"
-    },
-    {
-      "id": "fitnes",
-      "name": "фитнес"
-    }
-  ],
-  "offers": [
-    {
-      "id": "stroymat_1",
-      "niche": "stroymat",
-      "name": "Оффер 1"
-    },
-    {
-      "id": "stroymat_ofer_3",
-      "niche": "stroymat",
-      "name": "офер 3"
-    },
-    {
-      "id": "fitnes_korotkiy1",
-      "niche": "fitnes",
-      "name": "короткий1"
-    }
-  ],
-  "stages": [
-    {
-      "id": "lead",
-      "name": "Заявки"
-    },
-    {
-      "id": "qual",
-      "name": "Квал. заявки"
-    },
-    {
-      "id": "zoom",
-      "name": "Проведённые зумы"
-    },
-    {
-      "id": "won",
-      "name": "Продажи"
-    }
-  ],
-  "outreach_types": [
-    {
-      "id": "lpr",
-      "name": "ЛПР аутрич",
-      "color": "#328DFF"
-    }
-  ],
-  "scripts": []
+ "channels": [
+  {
+   "id": "vk",
+   "name": "ВК реклама",
+   "color": "#328DFF"
+  },
+  {
+   "id": "calls",
+   "name": "Дозвоны",
+   "color": "#eb6834"
+  },
+  {
+   "id": "cold",
+   "name": "Холодные рассылки",
+   "color": "#1baf7a"
+  },
+  {
+   "id": "tg",
+   "name": "Чаты в телеграм",
+   "color": "#eda100"
+  }
+ ],
+ "niches": [
+  {
+   "id": "stroymat",
+   "name": "Стройматериалы"
+  },
+  {
+   "id": "fitnes",
+   "name": "фитнес"
+  },
+  {
+   "id": "fitnes_okvedy_artema",
+   "name": "ФИТНЕС (ОКВЭДЫ АРТЕМА)"
+  }
+ ],
+ "offers": [
+  {
+   "id": "stroymat_1",
+   "niche": "stroymat",
+   "name": "Оффер 1"
+  },
+  {
+   "id": "stroymat_ofer_3",
+   "niche": "stroymat",
+   "name": "офер 3"
+  },
+  {
+   "id": "fitnes_korotkiy1",
+   "niche": "fitnes",
+   "name": "короткий1"
+  }
+ ],
+ "stages": [
+  {
+   "id": "lead",
+   "name": "Заявки"
+  },
+  {
+   "id": "qual",
+   "name": "Квал. заявки"
+  },
+  {
+   "id": "zoom",
+   "name": "Проведённые зумы"
+  },
+  {
+   "id": "won",
+   "name": "Продажи"
+  }
+ ],
+ "outreach_types": [
+  {
+   "id": "lpr",
+   "name": "ЛПР аутрич",
+   "color": "#328DFF"
+  }
+ ],
+ "scripts": [
+  {
+   "id": "fitnes_okvedy_artema_lpr_aud",
+   "niche": "fitnes_okvedy_artema",
+   "type": "lpr",
+   "name": "АУДИТ САЙТА И КАРТ"
+  }
+ ]
 }
