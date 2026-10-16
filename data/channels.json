@@ -68,14 +68,9 @@
   ],
   "outreach_types": [
     {
-      "id": "admin",
-      "name": "Администраторы",
-      "color": "#328DFF"
-    },
-    {
       "id": "lpr",
       "name": "ЛПР аутрич",
-      "color": "#eb6834"
+      "color": "#328DFF"
     }
   ],
   "scripts": []

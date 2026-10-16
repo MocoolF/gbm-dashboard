@@ -885,9 +885,10 @@ function renderOutreach() {
     if (!open) return;
     g.scripts.forEach(s => {
       const r = el('tr','tbl__offer' + (NUMK.every(f => !s[f]) ? ' is-empty' : ''));
+      const many = S.otypes.length > 1;
       r.append(el('td','tbl__name',
-        `<span class="tbl__t" title="${s.name} · ${typeName(s.type)}">
-           <span class="chan__dot" style="background:${typeColor(s.type)};display:inline-block;margin-right:7px"></span>${s.name}</span>`));
+        `<span class="tbl__t" title="${s.name}${many ? ' · ' + typeName(s.type) : ''}">${
+          many ? `<span class="chan__dot" style="background:${typeColor(s.type)};display:inline-block;margin-right:7px"></span>` : ''}${s.name}</span>`));
       OUTCOLS.forEach(c => {
         if (c.calc) { r.append(el('td','tbl__num', s[c.k] + '%')); return; }
         const td = el('td','tbl__num' + (oneDay ? ' cell--edit' : ''), nf(s[c.k]));
@@ -914,15 +915,15 @@ function renderOutreach() {
   const step = n <= 45 ? 'day' : n <= 200 ? 'week' : 'month';
   $('#outDyn').textContent = `${short(S.from)} — ${short(S.to)} · по ${{day:'дням',week:'неделям',month:'месяцам'}[step]}`;
   const box = $('#outCharts'); box.innerHTML = '';
-  [['contacts','Контакты'], ['replies','Ответы'], ['audits','Аудиты'], ['quals','Квал'], ['zooms','Зумы']]
+  [['contacts','Контакты']]
     .forEach(([kind, title]) => {
       const series = S.otypes.map(t2 => ({
         name: t2.name, color: t2.color, rows: bin(outSeries(S.from, S.to, kind, t2.id), step)
       }));
       const sum = series.reduce((a,s) => a + s.rows.reduce((x,r) => x + r.v, 0), 0);
-      const w = el('div','ch', `<div class="ch__head"><span class="ch__t">${title}</span>
+      const w = el('div','ch ch--wide', `<div class="ch__head"><span class="ch__t">${title}</span>
         <span class="ch__sum">всего ${nf(sum)}</span></div>`);
-      w.append(legend(series));
+      if (series.length > 1) w.append(legend(series));
       w.append(multiChart(series, step));
       box.append(w);
     });
@@ -950,7 +951,7 @@ function renderOutAdd(oneDay) {
         : `<select class="sel" id="oa_n">${S.niches.map(n => `<option value="${n.id}"${n.id===st.niche?' selected':''}>${n.name}</option>`).join('')}</select>`}
       <button type="button" class="btn btn--icon" id="oa_ntog">${st.newNiche && S.niches.length ? '×' : '+'}</button>
     </div>
-    <select class="sel" id="oa_t" style="flex:1">${S.otypes.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}</select>
+    ${S.otypes.length > 1 ? `<select class="sel" id="oa_t" style="flex:1">${S.otypes.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}</select>` : ''}
     <input class="inp" id="oa_name" placeholder="Название скрипта" style="flex:1.4">`);
   const ok = el('button','btn btn--primary','Создать');
   const no = el('button','btn','Отмена');
@@ -967,7 +968,7 @@ async function createScript(st, btn) {
   try {
     const name = $('#oa_name').value.trim();
     if (!name) throw new Error('Впиши название скрипта');
-    const type = $('#oa_t').value;
+    const type = $('#oa_t')?.value || S.otypes[0]?.id || null;
     let nicheId, nicheName, newN = null;
     const nn = $('#oa_nnew');
     if (nn) {
@@ -1291,7 +1292,7 @@ function renderOutForm() {
           : `<select class="sel" id="of_n">${S.niches.map(n => `<option value="${n.id}"${n.id===st.niche?' selected':''}>${n.name}</option>`).join('')}</select>`}
         <button type="button" class="btn btn--icon" id="of_ntog">${st.newNiche && S.niches.length ? '×' : '+'}</button>
       </div></label>
-    ${fieldSel('of_type','Тип рассылки', S.otypes.map(t => [t.id, t.name]), st.type)}
+    ${S.otypes.length > 1 ? fieldSel('of_type','Тип рассылки', S.otypes.map(t => [t.id, t.name]), st.type) : ''}
     <label class="fld"><span class="fld__l">Скрипт</span>
       <div class="fld__row">
         ${st.newScript || !scs.length
@@ -1305,7 +1306,7 @@ function renderOutForm() {
       <input class="inp" type="number" id="of_r" min="0" placeholder="12"></label>
     <button type="submit" class="btn btn--primary btn--wide">Записать рассылку</button>`;
 
-  $('#of_type').onchange = e => { st.type = e.target.value; renderOutForm(); };
+  const ot = $('#of_type'); if (ot) ot.onchange = e => { st.type = e.target.value; renderOutForm(); };
   $('#of_ntog').onclick = () => { st.newNiche = !st.newNiche; renderOutForm(); };
   $('#of_stog').onclick = () => { st.newScript = !st.newScript; renderOutForm(); };
   const ns = $('#of_n'); if (ns) ns.onchange = e => { st.niche = e.target.value; st.script=''; renderOutForm(); };
