@@ -44,7 +44,11 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--li
 .brand{display:flex;flex-direction:column;line-height:1.15}
 .brand__name{font-weight:700;font-size:15px;letter-spacing:-.2px;white-space:nowrap}
 .brand__sub{font-size:11px;color:var(--ink-3)}
-.tabs{display:flex;gap:2px;margin-left:8px}
+.tabs{display:flex;gap:2px;margin-left:8px;align-items:center}
+.tabs__arch{font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.5px;
+  margin:0 4px 0 10px;padding-left:10px;border-left:1px solid var(--line);line-height:1.6}
+.tab--arch{color:var(--ink-3)}
+.tab--arch:hover:not(:disabled){color:var(--ink-2)}
 .tab{padding:7px 13px;border-radius:8px;font-size:13px;font-weight:500;color:var(--ink-2)}
 .tab:hover:not(:disabled){background:var(--line-2)}
 .tab.is-active{background:var(--brand-soft);color:var(--brand);font-weight:600}
@@ -290,6 +294,8 @@ html[data-theme="dark"] .tip{background:#0d1216;border:1px solid var(--line)}
 /* ---------- responsive ---------- */
 @media (max-width:560px){
   .brand{display:none}
+  .tabs__arch{display:none}
+  .tabs{gap:1px}
   .topbar__in{gap:6px}
   .tabs{margin-left:0;flex:1}
   .tab{flex:1;text-align:center;padding:6px 4px;font-size:12px}

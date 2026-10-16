@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="robots" content="noindex, nofollow">
 <title>GBM Studio — Дашборд</title>
-<link rel="stylesheet" href="assets/style.css?v=6164e295">
+<link rel="stylesheet" href="assets/style.css?v=6f03d7c5">
 </head>
 <body>
 
@@ -26,10 +26,11 @@
       <span class="brand__sub">дашборд агентства</span>
     </div>
     <nav class="tabs" id="tabs">
-      <button class="tab is-active" data-tab="summary">Сводка</button>
-      <button class="tab" data-tab="calls">Дозвоны</button>
-      <button class="tab" data-tab="out">Рассылки</button>
+      <button class="tab is-active" data-tab="out">Аутрич</button>
       <button class="tab" data-tab="data">Данные</button>
+      <span class="tabs__arch">архив</span>
+      <button class="tab tab--arch" data-tab="summary">Сводка</button>
+      <button class="tab tab--arch" data-tab="calls">Дозвоны</button>
     </nav>
     <button class="icon-btn" id="themeBtn" title="Тема" aria-label="Переключить тему">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -81,7 +82,7 @@
   </div>
 </div>
 
-<main class="wrap" id="view-summary">
+<main class="wrap" id="view-summary" hidden>
 
   <section class="top" id="top"></section>
 
@@ -116,7 +117,7 @@
 
   <footer class="foot">
     Данные вносятся вручную в <code>data/leads.json</code> и <code>data/spend.json</code>
-    · <span id="build">сборка 08.10 16:03 · 6164e295</span>
+    · <span id="build">сборка 16.10 23:52 · 6f03d7c5</span>
   </footer>
 </main>
 
@@ -158,7 +159,7 @@
   </section>
 
   <footer class="foot">
-    Контакты и ответы ведутся в <code>data/outreach.json</code>, заявки — обычные лиды канала «Холодные рассылки»
+    Аутрич: контакты и ответы ведутся в <code>data/outreach.json</code>, заявки — обычные лиды канала «Холодные рассылки»
   </footer>
 </main>
 
@@ -210,6 +211,6 @@
 
 <div class="tip" id="tip" hidden></div>
 
-<script src="assets/app.js?v=6164e295"></script>
+<script src="assets/app.js?v=6f03d7c5"></script>
 </body>
 </html>

@@ -26,14 +26,36 @@ const pct = (a,b) => b > 0 ? Math.round(a/b*100) : 0;
 const plural = (n, f) => { const m = n % 10, h = n % 100;
   return f[(m === 1 && h !== 11) ? 0 : (m >= 2 && m <= 4 && (h < 10 || h >= 20)) ? 1 : 2]; };
 
-const TODAY = iso(new Date());
-const weekStart = () => addD(TODAY, -((parse(TODAY).getDay() + 6) % 7));   // понедельник текущей недели
+let TODAY = iso(new Date());                                  // локальная дата устройства
+const weekStart = () => addD(TODAY, -((parse(TODAY).getDay() + 6) % 7));   // понедельник
+const weekEnd   = () => addD(weekStart(), 6);                              // воскресенье
+
+/* вкладка может висеть сутками — проверяем, не наступил ли новый день */
+function refreshToday() {
+  const t = iso(new Date());
+  if (t === TODAY) return false;
+  TODAY = t;
+  if (S.preset && S.preset !== 'custom') {
+    const p = PRESETS.find(x => x[0] === S.preset);
+    if (p) { const [a, z] = p[2](); S.from = a; S.to = z; }
+  }
+  return true;
+}
+
+/* прошлый период для дельты: только прошедшая часть, иначе неполная неделя
+   сравнивается с полной и процент всегда уходит в минус */
+function prevRange() {
+  const effTo = S.to > TODAY ? TODAY : S.to;
+  const len = Math.max(1, daysIn(S.from, effTo));
+  const pTo = addD(S.from, -1);
+  return [addD(pTo, -(len - 1)), pTo];
+}
 
 /* ===================== state ===================== */
 const S = {
   leads: [], spend: [], outreach: [], channels: [], stages: [], goals: {}, niches: [], offers: [], otypes: [],
   from: monStart(TODAY), to: TODAY, preset: 'month', sel: new Set(),
-  tab: 'summary', cols: null, sort: { key:'spend', dir:-1 }, collapsed: new Set(),
+  tab: 'out', cols: null, sort: { key:'spend', dir:-1 }, collapsed: new Set(),
   pending: new Map(), removed: new Set(), nf: {}
 };
 
@@ -68,7 +90,10 @@ async function boot() {
       Открой папку через локальный сервер: <code>python3 -m http.server</code></div></div>`;
     return;
   }
-  initTheme(); initDate(); initChannels(); initCols(); initTabs();
+  initTheme(); restoreView(); initDate(); initChannels(); initCols(); initTabs();
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && refreshToday()) { applyDateLabel(); render(); }
+  });
   $('#updated').textContent = 'обновлено ' + long(TODAY);
   render();
   if (GH.token) reload();
@@ -132,20 +157,39 @@ function series(from, to, kind) {
   return [...out].map(([date, v]) => ({ date, v }));
 }
 
+function saveView() {
+  try { localStorage.setItem('gbm-view', JSON.stringify(
+    { tab:S.tab, preset:S.preset, from:S.from, to:S.to })); } catch {}
+}
+function restoreView() {
+  let v = null;
+  try { v = JSON.parse(localStorage.getItem('gbm-view')); } catch {}
+  if (!v) return;
+  if (['summary','calls','out','data'].includes(v.tab)) S.tab = v.tab;
+  if (v.preset === 'custom' && v.from && v.to) { S.from = v.from; S.to = v.to; S.preset = 'custom'; }
+  else if (v.preset) {
+    const p = PRESETS.find(x => x[0] === v.preset);
+    if (p) { const [a, z] = p[2](); S.from = a; S.to = z; S.preset = v.preset; }
+  }
+}
+function showTab() {
+  $$('#tabs .tab').forEach(x => x.classList.toggle('is-active', x.dataset.tab === S.tab));
+  $('#view-summary').hidden = S.tab !== 'summary';
+  $('#view-calls').hidden   = S.tab !== 'calls';
+  $('#view-out').hidden     = S.tab !== 'out';
+  $('#view-data').hidden    = S.tab !== 'data';
+  $('#chanCtrl').hidden = S.tab !== 'summary';
+  $('#colCtrl').hidden  = S.tab !== 'calls';
+  $('.filters').hidden  = S.tab === 'data';
+}
+
 /* ===================== render ===================== */
 function initTabs() {
   $$('#tabs .tab').forEach(b => b.onclick = () => {
     S.tab = b.dataset.tab;
-    $$('#tabs .tab').forEach(x => x.classList.toggle('is-active', x === b));
-    $('#view-summary').hidden = S.tab !== 'summary';
-    $('#view-calls').hidden   = S.tab !== 'calls';
-    $('#view-out').hidden     = S.tab !== 'out';
-    $('#view-data').hidden    = S.tab !== 'data';
-    $('#chanCtrl').hidden = S.tab !== 'summary';
-    $('#colCtrl').hidden  = S.tab !== 'calls';
-    $('.filters').hidden  = S.tab === 'data';
-    render();
+    showTab(); saveView(); render();
   });
+  showTab();
 }
 
 function render() {
@@ -153,8 +197,7 @@ function render() {
   if (S.tab === 'out')   return renderOutreach();
   if (S.tab === 'data')  return renderData();
   const cur  = slice(S.from, S.to);
-  const len  = daysIn(S.from, S.to);
-  const pTo   = addD(S.from, -1), pFrom = addD(pTo, -(len - 1));
+  const [pFrom, pTo] = prevRange();
   const prev = slice(pFrom, pTo);
   renderTop(cur, prev);
   renderGoals();
@@ -302,8 +345,7 @@ function callRows(from, to) {
 
 function renderCalls() {
   const { byNiche, total } = callRows(S.from, S.to);
-  const len = daysIn(S.from, S.to);
-  const pTo = addD(S.from, -1), pFrom = addD(pTo, -(len - 1));
+  const [pFrom, pTo] = prevRange();
   const prev = callRows(pFrom, pTo).total;
 
   /* сводка */
@@ -581,10 +623,10 @@ function niceMax(v) {
 const PRESETS = [
   ['today','Сегодня',          () => [TODAY, TODAY]],
   ['yday','Вчера',             () => [addD(TODAY,-1), addD(TODAY,-1)]],
-  ['week','Текущая неделя',    () => [weekStart(), TODAY]],
+  ['week','Эта неделя',        () => [weekStart(), weekEnd()]],
   ['d7','Последние 7 дней',    () => [addD(TODAY,-6), TODAY]],
   ['d30','Последние 30 дней',  () => [addD(TODAY,-29), TODAY]],
-  ['month','Текущий месяц',    () => [monStart(TODAY), TODAY]],
+  ['month','Этот месяц',       () => [monStart(TODAY), monEnd(TODAY)]],
   ['pmonth','Прошлый месяц',   () => { const p = addD(monStart(TODAY), -1); return [monStart(p), p]; }],
   ['q','Последние 90 дней',    () => [addD(TODAY,-89), TODAY]],
   ['all','Всё время',          () => ['2000-01-01', TODAY]]
@@ -614,7 +656,7 @@ function renderQuick() {
     b.onclick = () => {
       const [a, z] = PRESETS.find(p => p[0] === id)[2]();
       S.from = a; S.to = z; S.preset = id;
-      closeAll(); applyDateLabel(); render();
+      closeAll(); applyDateLabel(); saveView(); render();
     };
     box.append(b);
   });
@@ -633,7 +675,7 @@ function drawDate() {
   const pres = el('div','dp__presets');
   PRESETS.forEach(([id, name, fn]) => {
     const b = el('button','dp__preset' + (S.preset === id ? ' is-active' : ''), name);
-    b.onclick = () => { const [a,z] = fn(); S.from = a; S.to = z; S.preset = id; closeAll(); applyDateLabel(); render(); };
+    b.onclick = () => { const [a,z] = fn(); S.from = a; S.to = z; S.preset = id; closeAll(); applyDateLabel(); saveView(); render(); };
     pres.append(b);
   });
   const right = el('div','dp__right');
@@ -642,7 +684,7 @@ function drawDate() {
   const foot = el('div','dp__foot', `<span class="dp__cur">${dpFrom ? long(dpFrom) : '…'} — ${dpTo ? long(dpTo) : '…'}</span>`);
   const cancel = el('button','btn','Отмена'); cancel.onclick = closeAll;
   const ok = el('button','btn btn--primary','Применить');
-  ok.onclick = () => { if (!dpFrom) return; S.from = dpFrom; S.to = dpTo || dpFrom; S.preset = 'custom'; closeAll(); applyDateLabel(); render(); };
+  ok.onclick = () => { if (!dpFrom) return; S.from = dpFrom; S.to = dpTo || dpFrom; S.preset = 'custom'; closeAll(); applyDateLabel(); saveView(); render(); };
   foot.append(cancel, ok);
   right.append(months, foot);
   pop.append(pres, right);
@@ -767,8 +809,7 @@ const OUTCOLS = [
 
 function renderOutreach() {
   const { rows, total } = outRows(S.from, S.to);
-  const len = daysIn(S.from, S.to);
-  const pTo = addD(S.from, -1), pFrom = addD(pTo, -(len - 1));
+  const [pFrom, pTo] = prevRange();
   const prev = outRows(pFrom, pTo).total;
 
   const tiles = [
