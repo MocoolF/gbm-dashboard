@@ -63,5 +63,12 @@
   "date": "2026-10-17",
   "channel": "vk",
   "amount": 0
+ },
+ {
+  "date": "2026-10-15",
+  "channel": "calls",
+  "amount": 190,
+  "niche": "fitnes",
+  "offer": "fitnes_korotkiy1"
  }
 ]
