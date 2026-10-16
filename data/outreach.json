@@ -8,5 +8,15 @@
   "audits": 0,
   "quals": 0,
   "zooms": 0
+ },
+ {
+  "date": "2026-10-16",
+  "type": "lpr",
+  "script": "fitnes_okvedy_artema_lpr_aud",
+  "contacts": 1,
+  "replies": 0,
+  "audits": 0,
+  "quals": 0,
+  "zooms": 0
  }
 ]
